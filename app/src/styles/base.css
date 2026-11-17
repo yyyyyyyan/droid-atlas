@@ -1,0 +1,735 @@
+/* Droid Atlas: tokens, reset, shared controls and the shell.
+   One palette: every region hue shares the same OKLCH lightness and chroma
+   steps (the .place block) and differs only in --h. */
+
+:root {
+  --font-ui: "Figtree Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Figtree Variable", system-ui, sans-serif;
+  --nav-h: 56px;
+  --rail-w: 88px;
+  --panel-w: clamp(400px, 36vw, 540px);
+  --gutter: 16px;
+  --bar-h: 44px;
+  --strip-h: 36px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --h: 85;
+  --cs: 0.14;
+
+  --bg: #000;
+  --surface: oklch(0.17 0.005 85);
+  --surface-2: oklch(0.215 0.006 85);
+  --surface-3: oklch(0.275 0.008 85);
+  --text: oklch(0.955 0.008 85);
+  --text-2: oklch(0.77 0.012 85);
+  --text-3: oklch(0.66 0.012 85);
+  --line: oklch(0.25 0.006 85);
+  --scrim: rgb(0 0 0 / 0.62);
+  --good: oklch(0.84 0.11 155);
+  --good-bg: oklch(0.25 0.045 155);
+  --caution: oklch(0.85 0.11 78);
+  --caution-bg: oklch(0.26 0.05 78);
+  --caution-on: oklch(0.2 0.04 78);
+  --star: oklch(0.84 0.13 88);
+  --ico-plate-dark: oklch(0.2 0.004 85);
+  --ico-plate-light: oklch(0.965 0.004 85);
+  --ico-plate: var(--ico-plate-dark);
+  --ico-line: rgb(255 255 255 / 0.13);
+  color-scheme: dark;
+}
+
+/*
+ * Firefox for Android gives the height of the system navigation bar as the
+ * bottom inset in a tab, where the page already ends above that bar, so
+ * adding it there leaves an empty band under everything that stands at the
+ * bottom. Chrome gives an inset only where the page really reaches under the
+ * system bar.
+ */
+@supports (-moz-appearance: none) {
+  @media (display-mode: browser) {
+    :root { --safe-b: 0px; }
+  }
+}
+
+:root[data-theme="light"] {
+  --bg: oklch(0.985 0.004 85);
+  --surface: oklch(0.955 0.006 85);
+  --surface-2: oklch(0.925 0.008 85);
+  --surface-3: oklch(0.885 0.01 85);
+  --text: oklch(0.22 0.012 80);
+  --text-2: oklch(0.4 0.014 80);
+  --text-3: oklch(0.47 0.014 80);
+  --line: oklch(0.88 0.008 85);
+  --scrim: rgb(24 20 14 / 0.42);
+  --good: oklch(0.4 0.11 155);
+  --good-bg: oklch(0.94 0.04 155);
+  --caution: oklch(0.42 0.11 62);
+  --caution-bg: oklch(0.94 0.05 82);
+  --caution-on: oklch(0.985 0.01 82);
+  --star: oklch(0.56 0.13 75);
+  --ico-plate: var(--ico-plate-light);
+  --ico-line: rgb(0 0 0 / 0.1);
+  color-scheme: light;
+}
+
+.place {
+  --p-container: oklch(0.3 calc(0.084 * var(--cs)) var(--h));
+  --p-container-hi: oklch(0.36 calc(0.095 * var(--cs)) var(--h));
+  --p-on: oklch(0.955 calc(0.03 * var(--cs)) var(--h));
+  --p-on-2: oklch(0.85 calc(0.06 * var(--cs)) var(--h));
+  --p-accent: oklch(0.84 calc(0.115 * var(--cs)) var(--h));
+  --p-on-accent: oklch(0.2 calc(0.05 * var(--cs)) var(--h));
+  --p-dim: oklch(0.22 calc(0.042 * var(--cs)) var(--h));
+  --p-text: oklch(0.86 calc(0.085 * var(--cs)) var(--h));
+}
+
+:root[data-theme="light"] .place {
+  --p-container: oklch(0.905 calc(0.055 * var(--cs)) var(--h));
+  --p-container-hi: oklch(0.86 calc(0.07 * var(--cs)) var(--h));
+  --p-on: oklch(0.25 calc(0.06 * var(--cs)) var(--h));
+  --p-on-2: oklch(0.38 calc(0.09 * var(--cs)) var(--h));
+  --p-accent: oklch(0.46 calc(0.13 * var(--cs)) var(--h));
+  --p-on-accent: oklch(0.985 calc(0.012 * var(--cs)) var(--h));
+  --p-dim: oklch(0.945 calc(0.03 * var(--cs)) var(--h));
+  --p-text: oklch(0.41 calc(0.12 * var(--cs)) var(--h));
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  /* The app is its own page: a pull at the top of a list must not make the browser reload it. */
+  overscroll-behavior-y: contain;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 15px/1.4 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  overflow-wrap: break-word;
+}
+
+/* While a sheet is open the page behind does not scroll. */
+html.is-modal { overflow: hidden; overscroll-behavior-y: none; }
+
+:focus-visible { outline: 2px solid var(--p-accent, var(--text)); outline-offset: 2px; }
+a { color: inherit; }
+/* A name or a figure with its unit: a line breaks around it, never inside it. */
+.whole { white-space: nowrap; }
+/* The interface, not its content: a long press on it starts no selection. App names, descriptions, package ids, versions and license texts stay selectable. */
+.home-head, .place-head, .plain-head, .overline, h2:not(#sheet-title), .nav, .bar, .strip, button, .chip, .tchip, .tile, .lens, .sheet-top, .bsheet-head {
+  -webkit-user-select: none;
+  user-select: none;
+}
+button, input, select { font: inherit; color: inherit; }
+h1, h2, h3, h4, p, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip {
+  position: fixed;
+  top: -100px;
+  left: 8px;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 22px;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+  text-decoration: none;
+}
+.skip:focus { top: 8px; }
+
+svg.icon {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+svg.icon.is-filled { fill: currentColor; }
+
+.overline {
+  font: 700 11px/1.3 var(--font-ui);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.overline span { color: var(--text-3); font-weight: 600; }
+
+.muted { color: var(--text-2); font-size: 14px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 600 14.5px/1.2 var(--font-ui);
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn:active { background: var(--surface-3); }
+.btn-strong { background: var(--text); color: var(--bg); }
+.btn-strong:active { background: var(--text-2); }
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.icon-btn:active { background: color-mix(in oklch, currentColor 14%, transparent); }
+
+.link-btn {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--p-text, var(--text));
+  font: 600 13.5px/1.2 var(--font-ui);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/*
+ * Pills drawn shorter than the 44 px a finger needs. The control's own box is
+ * 44 px tall: the pill is what lies inside its transparent top and bottom
+ * borders, and a negative margin hands the extra height back, so a row of
+ * pills takes the room the pills appear to take. `--pill-h` is the drawn
+ * height and `--pill-r` its corner. Rows that wrap need a row gap of at
+ * least 44 px minus the drawn height, or the boxes overlap.
+ */
+.chip, .bar-pill, .tchip, .pin {
+  --hit: calc((44px - var(--pill-h)) / 2);
+  position: relative;
+  height: 44px;
+  margin-block: calc(var(--hit) * -1);
+  border: solid transparent;
+  border-width: var(--hit) 0;
+  border-radius: var(--pill-r, calc(var(--pill-h) / 2)) / calc(var(--pill-r, calc(var(--pill-h) / 2)) + var(--hit));
+  background-clip: padding-box;
+}
+/* The focus ring is drawn around the pill, not around the taller box, and inside the box so a scrolling row cannot clip it. */
+:is(.chip, .bar-pill, .tchip, .pin):focus-visible { outline: none; }
+:is(.chip, .bar-pill, .tchip, .pin):focus-visible::before, .bar-sort:has(select:focus-visible)::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--p-accent, var(--text));
+  border-radius: calc(var(--pill-r, calc(var(--pill-h) / 2)) + 4px);
+  pointer-events: none;
+}
+
+.chip {
+  --pill-h: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 0 12px;
+  background-color: var(--p-dim);
+  color: var(--p-text);
+  font: 600 13.5px/1 var(--font-ui);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chip .n { font-weight: 500; opacity: 0.85; font-variant-numeric: tabular-nums; }
+.chip-by { font-weight: 500; opacity: 0.85; }
+.chip:active { background-color: var(--p-container); }
+.chip[aria-current="page"], .chip[aria-pressed="true"] { background-color: var(--p-accent); color: var(--p-on-accent); }
+.chip:disabled { opacity: 0.45; cursor: default; }
+.chip-plain { background-color: var(--surface); color: var(--text); }
+.chip-plain:active { background-color: var(--surface-2); }
+.dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--p-accent); }
+.chip[aria-pressed="true"] .dot, .chip[aria-current="page"] .dot { background: currentColor; }
+
+.fchip {
+  flex: none;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font: 600 11px/18px var(--font-ui);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.fchip-place { background: var(--p-dim); color: var(--p-text); }
+.fchip-good { background: var(--good-bg); color: var(--good); }
+.fchip-caution { background: var(--caution-bg); color: var(--caution); }
+.fchip-alert { background: var(--caution); color: var(--caution-on); }
+.fchip-neutral { background: var(--surface-2); color: var(--text-2); }
+
+.seg { margin: 0; padding: 0; border: 0; min-width: 0; }
+.seg legend { margin-bottom: 8px; padding: 0; }
+.seg-row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 3px; border-radius: 16px; background: var(--surface); }
+.seg label { position: relative; }
+.seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.seg span { display: grid; place-items: center; min-height: 44px; border-radius: 13px; font: 600 13.5px/1 var(--font-ui); color: var(--text-2); }
+.seg input:checked + span { background: var(--surface-3); color: var(--text); }
+.seg input:focus-visible + span { outline: 2px solid var(--text); outline-offset: -2px; }
+
+/* ---------- Shell ---------- */
+
+.main {
+  padding-bottom: calc(var(--nav-h) + var(--safe-b));
+  overflow-x: clip;
+  outline: none;
+}
+
+.view { min-height: calc(100dvh - var(--nav-h) - var(--safe-b)); }
+.view-wrap.is-entering { animation: view-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+@keyframes view-fade {
+  from { opacity: 0; }
+}
+
+.nav {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 20;
+  display: flex;
+  height: calc(var(--nav-h) + var(--safe-b));
+  padding-bottom: var(--safe-b);
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+.nav-mark { display: none; }
+
+/* What was just removed, and the way to put it back: above the bottom bar, out of the thumb's scrolling path. */
+.undo-bar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--nav-h) + var(--safe-b) + 10px);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 520px;
+  min-height: 48px;
+  margin-inline: auto;
+  padding: 0 6px 0 16px;
+  border-radius: 14px;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
+  font-size: 14.5px;
+  animation: fade-in 0.16s;
+}
+.undo-text { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.undo-btn { flex: none; min-width: 64px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: none; color: inherit; font: 700 14.5px/1 var(--font-ui); cursor: pointer; }
+.undo-btn:active { background: color-mix(in oklch, currentColor 14%, transparent); }
+html.has-keyboard .undo-bar { bottom: 10px; }
+
+/*
+ * Pull to refresh (ui/PullToRefresh.tsx): a disc that comes down from the
+ * top edge with the finger, half as fast, and becomes a line of words once
+ * let go. `--pull` is how far down it is; the component writes it while a
+ * finger holds it.
+ */
+.pull {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 50%;
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  min-width: 40px;
+  max-width: calc(100vw - 24px);
+  padding: 0 10px;
+  border-radius: 20px;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: 0 4px 18px rgb(0 0 0 / 0.32);
+  font: 600 13.5px/1 var(--font-ui);
+  white-space: nowrap;
+  pointer-events: none;
+  translate: -50% calc(var(--pull, 0px) - 52px);
+  opacity: 0;
+}
+.pull:not([data-phase="idle"]) { opacity: 1; }
+.pull[data-phase="refreshing"] { --pull: 68px; transition: translate 0.2s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.pull[data-phase="settling"] { transition: translate 0.2s cubic-bezier(0.4, 0, 1, 1), opacity 0.2s; }
+/* What a pull found is said where the app says things for a moment, above the bottom bar, not over the page title. */
+.pull:is([data-phase="said"], [data-phase="leaving"]) { top: auto; bottom: calc(var(--nav-h) + var(--safe-b) + 10px); translate: -50% 0; transition: none; }
+.pull[data-phase="leaving"] { opacity: 0; transition: opacity 0.2s; }
+.pull-arc { flex: none; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; transform-origin: center; }
+.pull[data-phase="refreshing"] .pull-arc { animation: pull-spin 0.8s linear infinite; }
+.pull:is([data-phase="said"], [data-phase="leaving"]) .pull-arc { display: none; }
+/* The line is a live region: it stays in the page while it says nothing, and only takes no room. */
+.pull-label { padding: 0 4px 0 8px; overflow: hidden; text-overflow: ellipsis; }
+.pull:is([data-phase="said"], [data-phase="leaving"]) .pull-label { padding: 0 4px; }
+.pull-label:empty { padding: 0; }
+@keyframes pull-spin {
+  to { rotate: 360deg; }
+}
+/* At the very top a downward drag is the app's: the browser keeps sideways pans and scrolling down the page, and stretches nothing. */
+@media (pointer: coarse) {
+  html.is-at-top:not(.is-modal) { touch-action: pan-x pan-down; }
+}
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--text-2);
+  font: 600 11.5px/1 var(--font-ui);
+  text-decoration: none;
+}
+.nav-pill {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 28px;
+  border-radius: 14px;
+  transition: background-color 0.16s;
+}
+.nav-item[aria-current="page"] { color: var(--text); }
+.nav-item[aria-current="page"] .nav-pill { background: var(--surface-3); }
+.nav-item:focus-visible { outline-offset: -4px; }
+
+/* With the on-screen keyboard up, the bar would sit on top of it and take a row of results; it comes back with the keyboard gone. */
+@media (max-width: 1023.98px) {
+  html.has-keyboard .nav { display: none; }
+  html.has-keyboard .main { padding-bottom: 0; }
+}
+
+/* A row that scrolls sideways fades at its trailing edge, which is what says there is more. */
+.fade-x {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);
+}
+
+/*
+ * The mark, as tall as a line of the header beside it; its pieces in the
+ * theme's fills. On a screen of one device pixel per CSS pixel the 18 px mark
+ * is the drawing fitted to the pixel grid, whose gaps stay whole pixels; the
+ * rail's larger mark is the full drawing everywhere.
+ */
+.mark { --mark-h: 18px; display: block; flex: none; width: calc(var(--mark-h) * 256 / 304); height: var(--mark-h); }
+.mark svg { display: block; width: 100%; height: 100%; }
+.mark .mark-fitted { display: none; }
+@media (max-resolution: 1.49dppx) {
+  .mark .mark-full { display: none; }
+  .mark .mark-fitted { display: block; }
+  .nav-mark .mark .mark-full { display: block; }
+  .nav-mark .mark .mark-fitted { display: none; }
+}
+.mark .k1 { fill: #b6a6fa; }
+.mark .k2 { fill: #c9b553; }
+.mark .k3 { fill: #f7958d; }
+:root[data-theme="light"] .mark .k1 { fill: #7c6cbb; }
+:root[data-theme="light"] .mark .k2 { fill: #8d7a00; }
+:root[data-theme="light"] .mark .k3 { fill: #b75b55; }
+
+/* ---------- Status screens: loading, failure, empty, not found ---------- */
+
+.status { display: grid; place-items: center; padding: 56px 24px; text-align: center; }
+.status-inner { display: grid; gap: 8px; justify-items: center; max-width: 330px; }
+.status-title { font: 700 20px/1.2 var(--font-display); text-wrap: balance; }
+.status-text { font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.status-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+
+.boot { min-height: 100dvh; padding: 0 var(--gutter); }
+.boot-wait { padding-top: 22px; font: 600 15px/1.3 var(--font-ui); color: var(--text-2); opacity: 0; animation: boot-appear 0.01s 400ms forwards; }
+@keyframes boot-appear { to { opacity: 1; } }
+.boot-body { padding: 0 var(--gutter); }
+.plain-head .boot-wait { padding-top: 0; }
+.plain-head.has-back .boot-wait { display: flex; align-items: center; min-height: 44px; }
+.boot-head { display: flex; align-items: center; gap: 9px; height: 52px; font: 800 19px/1 var(--font-display); letter-spacing: -0.01em; }
+.boot-map {
+  display: grid;
+  grid-template: 5fr 3fr 2fr / 5fr 4fr 3fr;
+  gap: 3px;
+  height: clamp(340px, calc(100svh - 300px), 560px);
+}
+.boot-map i { border-radius: 8px; background: var(--surface); animation: boot-pulse 1.4s ease-in-out infinite; }
+.boot-map i:nth-child(1) { grid-row: span 2; border-top-left-radius: 26px; }
+.boot-map i:nth-child(2) { animation-delay: 0.1s; }
+.boot-map i:nth-child(3) { animation-delay: 0.2s; border-top-right-radius: 26px; }
+.boot-map i:nth-child(4) { grid-column: span 2; animation-delay: 0.3s; }
+.boot-map i:nth-child(5) { animation-delay: 0.4s; border-bottom-left-radius: 26px; }
+.boot-map i:nth-child(6) { grid-column: span 2; animation-delay: 0.5s; border-bottom-right-radius: 26px; }
+.boot-text { margin-top: 14px; font-size: 13.5px; color: var(--text-2); }
+@keyframes boot-pulse {
+  50% { background: var(--surface-2); }
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px var(--gutter) 0;
+  padding: 10px 6px 10px 12px;
+  border-radius: 14px;
+  background: var(--caution-bg);
+  color: var(--caution);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.notice p { flex: 1; min-width: 0; padding: 2px 0; }
+.notice .icon-btn { width: 44px; height: 44px; margin: -10px -2px -10px -6px; }
+.reload-prompt { margin-bottom: 4px; }
+.notice-action { min-height: 0; padding: 12px 0; margin: -12px 0; color: inherit; }
+
+.noscript { padding: 48px 24px; text-align: center; }
+
+/* ---------- Pages: settings, about ---------- */
+
+.plain-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 10px 2px 4px 4px;
+}
+.plain-head h1 { font: 700 25px/1.08 var(--font-display); letter-spacing: -0.015em; }
+.plain-head.is-root { padding-left: var(--gutter); }
+/* A column narrower than the window is centered in it, at every width. */
+.view-page { width: min(720px, 100%); margin: 0 auto; }
+.settings { display: grid; gap: 28px; padding: 8px var(--gutter) 40px; }
+.settings > section { display: grid; gap: 10px; min-width: 0; }
+.settings > section > .overline { margin-bottom: 2px; }
+.settings-label { display: block; font: 600 14.5px/1.3 var(--font-ui); color: var(--text); }
+.settings-lead { font-size: 14.5px; line-height: 1.5; color: var(--text); text-wrap: pretty; }
+.settings-note { font-size: 13px; line-height: 1.5; color: var(--text-2); text-wrap: pretty; }
+.settings .seg legend { margin-bottom: 8px; }
+.settings .seg + .settings-note { margin-top: -2px; }
+.settings .seg:not(:first-of-type) { margin-top: 8px; }
+.settings .link-btn { justify-self: start; text-align: left; }
+.settings .settings-install { justify-self: start; background: var(--surface-2); }
+.settings-block { display: grid; gap: 8px; justify-items: start; margin-top: 6px; padding: 14px; border-radius: 18px; background: var(--surface); }
+.settings-block .settings-note { justify-self: stretch; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.settings-block .btn { background: var(--surface-3); }
+.settings-block .btn:active { background: var(--surface-2); }
+.settings-result { justify-self: stretch; scroll-margin: 12px 0 calc(var(--nav-h) + var(--safe-b) + 12px); margin-top: 4px; padding: 10px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.45; }
+.settings-result.is-ok { background: var(--good-bg); color: var(--good); }
+.settings-result.is-problem { background: var(--caution-bg); color: var(--caution); }
+.settings .notice { margin: 0; }
+
+.switch-row { display: grid; gap: 6px; }
+.switch { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; cursor: pointer; }
+.switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.switch-track {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 2px var(--text-3);
+  transition: background-color 0.16s, box-shadow 0.16s;
+}
+.switch-thumb {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-2);
+  transition: transform 0.16s, background-color 0.16s;
+}
+.switch input:checked + .switch-track { background: var(--text); box-shadow: none; }
+.switch input:checked + .switch-track .switch-thumb { transform: translateX(20px) scale(1.5); background: var(--bg); }
+.switch input:focus-visible + .switch-track { outline: 2px solid var(--text); outline-offset: 3px; }
+
+.settings-links { display: grid; gap: 2px; border-radius: 18px; background: var(--surface); overflow: hidden; }
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 10px 6px 14px;
+  font: 600 14.5px/1.3 var(--font-ui);
+  text-decoration: none;
+}
+.nav-row > :first-child { margin-right: auto; }
+.nav-row-text { display: grid; gap: 2px; min-width: 0; padding: 4px 0; }
+.nav-row-sub { font: 400 12.5px/1.4 var(--font-ui); color: var(--text-2); text-wrap: pretty; }
+.nav-row .icon { flex: none; }
+.nav-row:active { background: var(--surface-2); }
+.nav-row:focus-visible { outline-offset: -3px; border-radius: 18px; }
+.nav-row .icon { color: var(--text-3); }
+.nav-row-meta { font: 500 12.5px/1.3 var(--font-ui); color: var(--text-2); text-align: right; }
+.settings-links li + li { border-top: 1px solid var(--line); }
+
+.page { display: grid; gap: 26px; padding: 8px var(--gutter) 40px; }
+
+/* About */
+.about-mark { display: flex; align-items: center; gap: 9px; font: 800 19px/1.2 var(--font-display); letter-spacing: -0.01em; }
+
+/* The project's address selects whole at a tap: a reader whose browser opens nothing from a mail link copies it instead. */
+.contact-address { overflow-wrap: anywhere; }
+
+/* A text the app shows itself: a license, the third-party notices. */
+.reader { margin: 0; padding: 14px; border-radius: 16px; background: var(--surface); font: 400 12.5px/1.55 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.page > section { display: grid; gap: 10px; min-width: 0; }
+.page .link-btn { justify-self: start; }
+.page-lead { font-size: 15px; line-height: 1.5; text-wrap: pretty; }
+.page-text { font-size: 14px; line-height: 1.55; color: var(--text-2); text-wrap: pretty; }
+.how-to { display: grid; gap: 6px; margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.5; color: var(--text-2); list-style: disc; }
+#about-facts { scroll-margin-top: 16px; }
+.page-status { padding: 24px var(--gutter); font-size: 14px; color: var(--text-2); }
+.page a, .credit-row a { color: var(--text); text-underline-offset: 3px; }
+.page code { font: 500 0.92em/1.3 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.about-version { font-size: 12.5px; line-height: 1.5; color: var(--text-3); }
+.about-version a { position: relative; display: inline-block; padding: 14px 0; margin: -14px 0; color: inherit; }
+
+.credit-block { display: grid; gap: 8px; padding: 14px; border-radius: 18px; background: var(--surface); }
+.credit-block h3 { font: 700 18px/1.2 var(--font-display); }
+.credit-line { font-size: 14px; line-height: 1.45; }
+.credit-facts { display: grid; gap: 8px; font-size: 13.5px; line-height: 1.45; }
+.credit-facts > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); column-gap: 12px; }
+/* A row that holds a link is as tall as the link's target, so the targets of two rows never lie over each other. */
+.credit-facts > div:has(dd a), .credit-facts > div:has(.fact-copy) { align-items: center; min-height: 44px; }
+.credit-facts dt { color: var(--text-2); }
+.credit-facts dd { min-width: 0; overflow-wrap: anywhere; }
+.fact-copy { display: flex; align-items: center; gap: 2px; }
+.fact-copy .icon-btn { color: var(--text-2); }
+.credit-facts dd > a, .credit-files a, .credit-facts dd span > a, .credit-block h3 a { position: relative; z-index: 1; display: inline-block; padding: 14px 0; margin: -14px 0; }
+.credit-facts dd > a.file-link, .credit-files a.file-link { display: inline-flex; }
+.credit-files a.file-link { min-height: 44px; margin: 0; padding: 0; }
+.credit-files { display: grid; justify-items: start; gap: 0; }
+.credit-sub { display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.45; color: var(--text-2); }
+/* Two notes that each start with a link stand far enough apart for the links' targets not to meet. */
+.credit-sub:has(> a) + .credit-sub:has(> a) { margin-top: 28px; }
+
+.health-sources { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+.health-sources > li { padding: 12px 14px; border-radius: 18px; background: var(--surface); }
+.health-sources h3 { margin: 0 0 6px; font: 600 15px/1.3 var(--font-ui); }
+.health-sources h3 a { position: relative; z-index: 1; display: inline-block; padding: 14px 0; margin: -14px 0; }
+.file-link { display: inline-flex; align-items: center; gap: 6px; }
+.health-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); column-gap: 12px; padding: 14px; border-radius: 18px; background: var(--surface); }
+.health-figure { font: 800 30px/1 var(--font-display); font-stretch: 80%; font-variant-numeric: tabular-nums; }
+.health-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; justify-items: start; min-width: 0; }
+.health-title { font: 600 14.5px/1.3 var(--font-ui); }
+.health-more { display: inline-flex; align-items: center; min-height: 44px; font: 600 13.5px/1.2 var(--font-ui); }
+.health-names { overflow-wrap: anywhere; }
+.health-names > span { display: inline-block; max-width: 100%; }
+.health-names a { position: relative; }
+.health-names a::before { content: ""; position: absolute; top: -12px; bottom: -12px; left: min(-2px, calc(50% - 22px)); right: min(-2px, calc(50% - 22px)); }
+.anomalies, .moved { display: grid; gap: 8px; }
+.anomalies li, .moved li { padding: 10px 12px; border-radius: 14px; background: var(--surface); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.anomaly-where { color: var(--text-2); }
+.anomaly-text { margin-top: 2px; }
+.moved a { display: inline-block; padding: 12px 0; margin: -12px 0; }
+
+.view-credits .page { padding-bottom: 6px; }
+.credits-bar { padding: 6px var(--gutter); }
+/* Room for the search to sit at the top of the screen however few credits match. */
+.view-credits .is-typing { min-height: 100vh; }
+/* A keystroke hides rows above a match that stays on screen; anchored to that match, the page would follow it up and take the search off the top. */
+.view-credits .is-typing .credits { overflow-anchor: none; }
+.credits-bar .search-count { padding-right: 14px; }
+/* A credit's row is as tall as its lines. Rows off screen are not laid out or painted until they come near; until then each is taken to be as tall as a one-line credit, or as it was when last seen. */
+.credit-row { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; padding: 8px var(--gutter) 0; contain: layout style paint; }
+.credits-groups { padding: 8px 44px 2px 0; }
+.credits-groups .chip-plain[aria-pressed="true"] { background-color: var(--text); color: var(--bg); }
+.credit-row .ico { margin-top: 2px; }
+.credit-row-name { overflow: hidden; font: 600 15.5px/20px var(--font-ui); white-space: nowrap; text-overflow: ellipsis; }
+/* Whose icon, where it was found, and its license: the line wraps and is never cut, because the license is its last word. */
+.credit-row-meta { font-size: 13px; line-height: 18px; color: var(--text-2); overflow-wrap: anywhere; }
+.credit-row-links { display: flex; flex-wrap: wrap; column-gap: 16px; min-height: 44px; font: 600 13px/1 var(--font-ui); }
+.credit-license { white-space: nowrap; }
+.credit-row-links a { display: inline-flex; align-items: center; flex: none; height: 44px; }
+
+/* Shown only where there is a mouse or a trackpad: what a keyboard and a pointer offer. */
+.only-fine { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .only-fine { display: revert; }
+}
+
+/* ---------- Wide layout ---------- */
+
+@media (min-width: 1024px) {
+  :root { --gutter: 28px; --bar-h: 52px; }
+
+  .main { margin-left: var(--rail-w); padding-bottom: 0; transition: margin-right 180ms ease-out; }
+  /* A transform would re-anchor the fixed panel that a list places beside itself. */
+  .view-wrap.is-entering { animation-name: view-fade; }
+  .main.has-panel { margin-right: var(--panel-w); }
+  .view { min-height: 100dvh; }
+  .view-list { width: min(920px, 100% - 48px); margin: 0 auto; }
+  .view-list.view-reading { width: min(720px, 100% - 48px); }
+
+  .nav {
+    inset: 0 auto 0 0;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: var(--rail-w);
+    height: auto;
+    padding: 14px 0;
+    border-top: 0;
+    border-right: 1px solid var(--line);
+  }
+  .nav-mark { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 10px; border-radius: 16px; }
+  .nav-mark .mark { --mark-h: 24px; }
+  .nav-item { flex: none; width: 76px; padding: 8px 0; border-radius: 16px; }
+  /*
+   * One axis: every page but Explore is a column centered right of the rail,
+   * its title on the content's left edge. The back control stands in the
+   * margin, left of the title.
+   */
+  .view-page { width: min(720px, 100% - 48px); }
+  .view-page.view-about { width: min(1008px, 100% - 48px); }
+  .view-page .plain-head { margin-left: -52px; padding-right: 0; }
+  .view-page .plain-head.is-root { margin-left: 0; padding-left: 0; }
+  .view-list > .plain-head.is-root { padding-left: var(--gutter); }
+  .settings, .page { max-width: none; padding: 16px 0 40px; }
+  .credit-row, .credits-bar, .view-credits .credits-groups { padding-inline: 0; }
+  .view-about .about { grid-template-columns: minmax(0, 560px) minmax(0, 400px); column-gap: 48px; align-items: start; }
+  .view-about .about > nav { grid-column: 2; grid-row: 1 / span 2; }
+  .plain-head h1 { font-size: 32px; }
+  .plain-head { padding-top: 20px; }
+  .fade-x { -webkit-mask-image: none; mask-image: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FIXTURE_GENERATED_AT: "2026-11-11T12:00:00.000Z"
+  ACTIONLINT_VERSION: "1.7.12"
+  ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+  REUSE_VERSION: "6.2.0"
+
+jobs:
+  hooks:
+    name: Commit hooks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: j178/prek-action@44924fe9ef4a6f88253c4b6b1bf11c689d3ce53d # v3.1.0
+        with:
+          prek-version: 0.5.9
+
+  check:
+    name: Check, test, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          cache: true
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check
+        run: pnpm run typecheck
+
+      - name: Unit tests (pipeline, app)
+        run: pnpm run test
+
+      - name: Release tooling tests
+        run: pnpm run test:release
+
+      - name: Catalog from the synthetic upstream fixture
+        run: |
+          node scripts/fixture/upstream-cache.mjs --out "$RUNNER_TEMP/upstream"
+          node pipeline/build.ts --offline --bootstrap \
+            --cache "$RUNNER_TEMP/upstream" --generated-at "$FIXTURE_GENERATED_AT" \
+            --out app/public/data
+
+      - name: Build the app
+        if: hashFiles('app/package.json') != ''
+        run: pnpm --filter ./app run build
+
+      - name: Third-party licenses and site assembly
+        if: hashFiles('app/package.json') != ''
+        run: |
+          node scripts/third-party-licenses.mjs --filter ./app --dist app/dist \
+            --out "$RUNNER_TEMP/third-party-licenses.txt"
+          node scripts/assemble-site.mjs --app-dist app/dist \
+            --third-party "$RUNNER_TEMP/third-party-licenses.txt" --out "$RUNNER_TEMP/site"
+          node scripts/leak-scan.mjs --root "$RUNNER_TEMP/site" --site
+
+      - name: End-to-end journeys
+        if: hashFiles('app/package.json') != '' && hashFiles('tests/e2e/package.json') != ''
+        env:
+          E2E_SITE_DIR: ${{ runner.temp }}/site
+        run: |
+          pnpm --filter ./tests/e2e exec playwright install --with-deps chromium
+          pnpm run test:e2e
+
+      - name: Lint workflows (actionlint)
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+
+      - name: License annotations (REUSE)
+        run: pipx run "reuse==${REUSE_VERSION}" lint
+
+      - name: Public export, leak scan and its license annotations
+        run: |
+          node scripts/export-public.mjs --out "$RUNNER_TEMP/public"
+          pipx run "reuse==${REUSE_VERSION}" --root "$RUNNER_TEMP/public" lint

@@ -1,0 +1,54 @@
+default_install_hook_types: [pre-commit, pre-push]
+
+# Kept byte for byte: license texts, generated catalog data, the vendored SPDX
+# license list and the lockfile.
+exclude: ^(COPYING$|LICENSES/|data/|app/public/data/|pipeline/spdx/licenses\.json$|pnpm-lock\.yaml$)
+
+repos:
+  - repo: builtin
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: deny-pattern
+        name: deny U+FFFD replacement character
+        args: ['\x{FFFD}']
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.52.0
+    hooks:
+      - id: typos
+        args: [--force-exclude]
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.32.0
+    hooks:
+      - id: zizmor
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: local
+    hooks:
+      - id: typecheck
+        name: type-check
+        language: system
+        entry: pnpm run typecheck
+        files: \.(ts|tsx|json)$
+        pass_filenames: false
+        stages: [pre-push]
+      - id: reuse
+        name: license annotations (REUSE)
+        language: system
+        entry: pipx run reuse==6.2.0 lint
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

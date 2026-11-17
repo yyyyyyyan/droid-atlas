@@ -1,0 +1,169 @@
+/*
+ * What answers a mouse. Every hover rule of the app is here, under one
+ * condition: a pointer that can hover and is fine. A finger never leaves a
+ * hover state on the last thing it touched, and the width of the window
+ * plays no part.
+ *
+ * Four answers, by what the thing is:
+ *   a surface that is clicked     its fill, one step up its own ramp
+ *   the same in its "on" color    an eighth of its own text color mixed in
+ *   text that is a link           a heavier underline, in the full text color
+ *   an icon alone                 a disc of its own color, and its name
+ * A disabled control gives none, and neither does a choice that a click
+ * cannot undo (the page a chip already shows, a checked radio). Nothing
+ * here changes a size or a position, and a change has no delay: a dense
+ * list must not trail as the pointer crosses it. Keyboard focus stays the
+ * ring it is everywhere else, so an element can show both.
+ */
+
+/* ---------- The name of an icon ---------- */
+
+/*
+ * An icon-only control names itself, with its key where it has one, under
+ * the pointer after a short rest and at once under keyboard focus. The label
+ * is decoration inside the control (ui/Tip.tsx): the accessible name is the
+ * control's own.
+ */
+:where(.icon-btn, .row-save, .nav-item, .nav-mark) { position: relative; }
+.tip {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--bg);
+  font: 600 12px/1 var(--font-ui);
+  letter-spacing: 0;
+  white-space: nowrap;
+  pointer-events: none;
+  translate: -50% 0;
+  opacity: 0;
+  visibility: hidden;
+}
+.tip kbd {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--bg) 20%, transparent);
+  color: inherit;
+  font-size: 11px;
+}
+.tip > kbd:last-child { margin-right: -4px; }
+.tip > kbd:first-child { margin-left: -4px; }
+.tip-start { left: 0; translate: none; }
+.tip-end { left: auto; right: 0; translate: none; }
+/* Beside the rail, not under it; beside Previous and Next, not over the name a person is stepping through. */
+.tip-side { top: 50%; left: calc(100% + 2px); translate: 0 -50%; }
+/* A row's bookmark is as tall as its row, and a compact row has no room under its disc: the name stands beside the disc, inside the row and its focus ring. */
+.tip-row { top: 50%; left: auto; right: calc(50% + var(--row-save-pad, 0px) / 2 + 22px); translate: 0 -50%; }
+:focus-visible > .tip { opacity: 1; visibility: visible; }
+[aria-disabled="true"] > .tip { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  :hover > .tip { opacity: 1; visibility: visible; transition: opacity 0.12s 0.5s, visibility 0s 0.5s; }
+  :active > .tip { opacity: 0; visibility: hidden; transition: none; }
+  /* Once clicked, Previous and Next are known: no name again while the pointer stays and the steps go on. */
+  .stepper :focus:not(:focus-visible) > .tip { opacity: 0; visibility: hidden; transition: none; }
+
+  /* ---------- Surfaces: one step up ---------- */
+
+  /* On the page. */
+  .row:hover { background: var(--surface); }
+  .nav-item:hover .nav-pill, .nav-mark:hover { background: var(--surface-2); }
+
+  /* On a surface. */
+  .lens:hover, .guides-line:hover, .bar-pill:hover, .tchip:hover, .pin:hover:not(:disabled), .search-form:hover,
+  .nav-row:hover, .reading-row:hover, .opt:hover { background-color: var(--surface-2); }
+  .btn:hover:not(:disabled), .note-field:hover { background-color: var(--surface-3); }
+  .settings-block .btn:hover:not(:disabled), .btn.save-btn:hover, .btn.btn-primary.is-stale:hover { background-color: color-mix(in oklch, var(--surface-3) 88%, var(--text)); }
+
+  /* In a region's color. */
+  .chip:hover:not(:disabled) { background-color: var(--p-container); }
+  .chip-plain:hover:not(:disabled) { background-color: var(--surface-2); }
+  .panel .chip-plain:hover:not(:disabled) { background-color: var(--surface-3); }
+  .panel .af .chip-plain:hover:not(:disabled) { background-color: color-mix(in oklch, var(--surface-3) 88%, var(--text)); }
+  .btn.save-btn[aria-pressed="true"]:hover { background-color: var(--p-container); }
+
+  /* A row of links on a tinted card takes a wash of its own text color, whatever the card's. */
+  .act:hover { background: color-mix(in oklch, currentColor 8%, transparent); }
+  .undo-btn:hover { background: color-mix(in oklch, currentColor 12%, transparent); }
+
+  /* One of two or three choices: the one not chosen comes halfway to the chosen one's fill. */
+  .seg-btn:hover:not([aria-checked="true"]), .seg input:not(:checked):hover + span { background: color-mix(in oklch, var(--surface-3) 50%, transparent); color: var(--text); }
+  .switch:hover .switch-track { box-shadow: inset 0 0 0 2px var(--text-2); }
+  .switch:hover input:checked + .switch-track { background: color-mix(in oklch, var(--text) 88%, var(--bg)); }
+  .sheet-grab:hover .bsheet-handle { opacity: 1; }
+
+  /* ---------- Surfaces in their "on" color: an eighth of the text color ---------- */
+
+  .chip[aria-pressed="true"]:hover, .bar-sort.is-set:hover, .bar-filter.is-set:hover, .tchip.is-on:hover,
+  .share-row .btn[aria-expanded="true"]:hover { background-color: color-mix(in oklch, var(--p-accent) 88%, var(--p-on-accent)); }
+  .chip[aria-current="page"]:hover { background-color: var(--p-accent); }
+  .btn.btn-strong:hover, .btn.btn-primary:hover:not(.is-stale),
+  .panel .chip-plain[aria-pressed="true"]:hover, .panel .af .chip-plain[aria-pressed="true"]:hover,
+  .credits-groups .chip-plain[aria-pressed="true"]:hover { background-color: color-mix(in oklch, var(--text) 88%, var(--bg)); }
+  .nav-item[aria-current="page"]:hover .nav-pill { background: color-mix(in oklch, var(--surface-3) 88%, var(--text)); }
+
+  /* ---------- Text links: a heavier underline ---------- */
+
+  :is(a, .link-btn, .chip-more):hover { text-decoration-thickness: 2px; }
+  .chip.chip-more:hover { background-color: transparent; }
+  .colophon a:hover, .caption-link:hover, .credit a:hover, .stat-foot a:hover, .act-needs a:hover,
+  .chip-more:hover, .retry-btn:hover, .sheet-more summary:hover { color: var(--text); }
+
+  /* ---------- Icons alone: a disc ---------- */
+
+  .icon-btn:hover { background: color-mix(in oklch, currentColor 10%, transparent); }
+  .icon-btn[aria-disabled="true"]:hover { background: none; }
+
+  /* ---------- A row is one thing ---------- */
+
+  /*
+   * The whole row fills as one shape, bookmark included. The bookmark, quiet
+   * at rest, takes the text's color while the pointer is anywhere on its row,
+   * and a disc of its own when the pointer is on it.
+   */
+  .row:hover .row-save:not([aria-pressed="true"]) { color: var(--text); }
+  .row-save::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: calc(50% - (var(--row-save-pad, 0px)) / 2);
+    width: 40px;
+    height: 40px;
+    margin: -20px 0 0 -20px;
+    border-radius: 50%;
+  }
+  .row-save:hover::before { background: color-mix(in oklch, currentColor 10%, transparent); }
+  /* The row of the app on show keeps its region's tint and deepens it, across the whole row. */
+  .row:has(> .row-link[aria-current="true"]):hover { background: color-mix(in oklch, var(--p-dim), var(--p-container) 45%); }
+
+  /* ---------- The map ---------- */
+
+  /*
+   * The region under the pointer rises a step and its categories come to
+   * full strength; the others step back toward their dim tone, as the regions
+   * of a map do around the one pointed at. The dim tone is a color of the
+   * place, not transparency, so every label keeps its contrast. Keyboard
+   * focus on a region does the same.
+   */
+  .tile-cats { transition: color 0.14s; }
+  .tile:hover, .tile:has(:focus-visible) { background: var(--p-container-hi); }
+  .tile:hover .tile-cats, .tile:has(:focus-visible) .tile-cats { color: var(--p-on); }
+  .mosaic:hover .tile:not(:hover), .mosaic:has(:focus-visible):not(:hover) .tile:not(:has(:focus-visible)) { background: color-mix(in oklch, var(--p-container), var(--p-dim) 60%); }
+
+  @media (min-width: 1024px) {
+    /* In the wide layout these stand on the page, not on a surface of their own. */
+    .lens:hover, .home-below .guides-line:hover { background-color: var(--surface); }
+  }
+  @media (max-width: 1023.98px) {
+    .row-save { --row-save-pad: calc(var(--gutter) - 12px); }
+  }
+}

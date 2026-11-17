@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Icon removal or a licensing question
+    url: https://github.com/yyyyyyyan/droid-atlas/blob/main/NOTICE.md#corrections-and-removal-requests
+    about: These go by email, not in a public issue. NOTICE.md has the address.
+  - name: Security problem
+    url: https://github.com/yyyyyyyan/droid-atlas/blob/main/SECURITY.md
+    about: Report a vulnerability privately, as SECURITY.md describes.

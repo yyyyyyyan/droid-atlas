@@ -1,0 +1,8 @@
+/* Fonts are self-hosted files from the @fontsource-variable packages (both OFL-1.1); nothing is fetched from a font service. */
+@import "@fontsource-variable/figtree/index.css";
+@import "@fontsource-variable/bricolage-grotesque/wdth.css";
+@import "./base.css";
+@import "./explore.css";
+@import "./list.css";
+@import "./sheet.css";
+@import "./hover.css";

@@ -1,0 +1,4 @@
+packages:
+  - app
+  - pipeline
+  - tests/e2e

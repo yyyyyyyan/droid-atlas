@@ -1,0 +1,35 @@
+[files]
+# License texts, generated catalog data, the vendored SPDX license list, the
+# lockfile, and the taxonomy document, which is generated from the catalog and
+# carries every app's name.
+extend-exclude = [
+  "COPYING",
+  "LICENSES/",
+  "data/",
+  "pipeline/spdx/licenses.json",
+  "pnpm-lock.yaml",
+  "docs/TAXONOMY.md",
+]
+
+[default]
+# Text a screen cut off, quoted with its ellipsis.
+extend-ignore-re = ['\w+…']
+
+[default.extend-words]
+# The project's own identifiers and terms: catch-alls, `iz` and "Iz" for
+# IzzyOnDroid, `froms`.
+alls = "alls"
+iz = "iz"
+froms = "froms"
+# Spellings in the sources that the pipeline must match: the NoDerivatives
+# license suffix and a misspelled "Proprietary".
+nd = "nd"
+propietary = "propietary"
+# Quoted from a source as written: an awesome-shizuku description and the app
+# name SuperFreezZ.
+cange = "cange"
+freez = "freez"
+# Pieces of regular expressions and a test string with a ligature.
+categor = "categor"
+frst = "frst"
+"offﬁce" = "offﬁce"

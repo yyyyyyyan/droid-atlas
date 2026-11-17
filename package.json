@@ -1,0 +1,20 @@
+{
+  "name": "droid-atlas",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "packageManager": "pnpm@12.19.0",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "data": "pnpm --filter @droid-atlas/pipeline run build",
+    "dev": "pnpm --filter @droid-atlas/app run dev",
+    "build": "pnpm --filter @droid-atlas/app run build",
+    "test": "pnpm -r --filter '!./tests/e2e' run test",
+    "typecheck": "pnpm -r run typecheck",
+    "test:release": "node --test --test-timeout=120000 \"scripts/test/*.test.mjs\"",
+    "test:e2e": "pnpm --filter ./tests/e2e run test",
+    "site": "node scripts/third-party-licenses.mjs --filter ./app --dist app/dist --out app/dist/third-party-licenses.txt && node scripts/assemble-site.mjs --check-only app/dist",
+    "export:public": "node scripts/export-public.mjs",
+    "leak-scan": "node scripts/leak-scan.mjs"
+  }
+}

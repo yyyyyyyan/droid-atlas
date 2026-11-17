@@ -1,0 +1,12 @@
+{
+  "same": [],
+  "different": [],
+  "packages": [
+    {
+      "entry": { "source": "android-foss", "url": "https://f-droid.org/", "category": "android-foss/app-store" },
+      "pkg": "org.fdroid.fdroid",
+      "reason": "F-Droid's own client: the entry links F-Droid's home page, which org.fdroid.fdroid states as its website; three other F-Droid packages state the same site, so rule 9 cannot decide",
+      "date": "2026-11-12"
+    }
+  ]
+}

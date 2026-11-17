@@ -1,0 +1,491 @@
+/* Lists: the sticky bar, the filter strip, rows in both densities, search, and the sheets a list opens. */
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+}
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--bar-h);
+  padding: 0 44px 0 var(--gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.bar-count {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 7px;
+  min-width: 0;
+  font: 600 14px/1.2 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.has-region .bar-count::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--p-accent); }
+.bar-fit, .bar-active, .bar-suggest { display: contents; }
+.bar-div { flex: none; width: 1px; height: 20px; margin: 0 3px; background: var(--surface-3); }
+.bar-row .tchip { --pill-h: 34px; padding: 0 12px; font-size: 13px; }
+
+/* On a phone the level's header already states the total, so the tools row starts with the tools. */
+@media (max-width: 1023.98px) {
+  .bar-count.is-total {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+.bar-pill {
+  --pill-h: 34px;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 6px;
+  padding: 0 12px 0 10px;
+  background-color: var(--surface);
+  color: var(--text);
+  font: 600 13px/1 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bar-pill:active { background-color: var(--surface-2); }
+.bar-sort.is-set, .bar-filter.is-set { background-color: var(--p-accent); color: var(--p-on-accent); }
+.bar-badge {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--p-on-accent);
+  color: var(--p-accent);
+  font: 700 11px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--strip-h);
+  padding-left: var(--gutter);
+}
+.strip-chips {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  /* Eight pixels taller than the strip, downwards, to hold the chips' boxes; only the chips take touches, so the rows beneath stay tappable between them. */
+  height: calc(100% + 8px);
+  margin-bottom: -8px;
+  padding-right: 44px;
+  padding-bottom: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  pointer-events: none;
+}
+.strip-chips > * { pointer-events: auto; }
+.tchip {
+  --pill-h: 28px;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 5px;
+  max-width: 240px;
+  padding: 0 10px;
+  background-color: var(--surface);
+  color: var(--text);
+  font: 600 12.5px/1 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+/*
+ * In the strip the box grows downwards, 4 px above the chip and 12 px below:
+ * the tools row above is full of 44 px boxes, and the two rows together have
+ * to stay inside the fifth of the screen that persistent chrome may take.
+ */
+.strip .tchip {
+  margin-block: -4px -12px;
+  border-width: 4px 0 12px;
+  border-radius: 14px / 18px 18px 26px 26px;
+}
+.tchip:active { background-color: var(--surface-2); }
+.tchip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tchip-n { font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.tchip.is-on { background-color: var(--p-accent); color: var(--p-on-accent); padding-right: 7px; }
+.tchip-pin.is-on { padding-right: 10px; }
+
+/* ---------- Rows ---------- */
+
+.rows { box-sizing: border-box; }
+.rows-static { overflow: visible; }
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  height: 88px;
+}
+.row.is-compact { height: 52px; }
+.row-link {
+  display: grid;
+  grid-template-columns: var(--row-ico, 48px) minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+  min-width: 0;
+  padding: 8px 4px 0 var(--gutter);
+  text-decoration: none;
+}
+.row-link .ico { margin-top: 4px; }
+.row.is-compact .row-link { --row-ico: 32px; column-gap: 10px; padding-top: 7px; }
+.row.is-compact .row-link .ico { margin-top: 3px; }
+.row-link:active { background: var(--surface); }
+.row-link:focus-visible { outline-offset: -3px; border-radius: 14px; }
+/* The app on show: its whole row, bookmark and all, one shape in its region tint, as under the pointer. */
+.row-link[aria-current="true"], .row:has(> .row-link[aria-current="true"]) { background: var(--p-dim); }
+.row:has(> .row-link[aria-current="true"]) > .row-link { background: none; }
+.row-save {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  padding: 0 calc(var(--gutter) - 12px) 0 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.row-save:active { color: var(--text); }
+.row-save[aria-pressed="true"] { color: var(--p-accent); }
+.row-save:focus-visible { outline-offset: -6px; border-radius: 14px; }
+
+/* What stands at the head of an entry: its icon, a placeholder made for the purpose, or a link glyph. The box never changes size. */
+.ico {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--ico);
+  height: var(--ico);
+  border-radius: 24%;
+  overflow: hidden;
+}
+.ico img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+.ico.has-img img { opacity: 1; }
+.ico.is-pending { background: var(--surface); }
+/* An icon stands on a quiet plate with a hairline around it, so one that is dark or partly transparent keeps its shape on a black page, and a pale one on a white page. */
+.ico.has-img { background: var(--ico-plate); }
+/* An icon drawn in white, or in black, on transparency stands on the plate it shows on, in either theme (ui/plate.ts). */
+.ico.has-img.on-dark-plate { background: var(--ico-plate-dark); }
+.ico.has-img.on-light-plate { background: var(--ico-plate-light); }
+.ico.has-img::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--ico-line);
+  pointer-events: none;
+}
+/*
+ * The placeholder for an app no icon was found for: its initials on a tile
+ * with an icon's own footprint, so the column of icons keeps one edge, and
+ * quiet by treatment: a flat, dim tint and small letters, so it never
+ * outweighs the real icons beside it. The tint's hue is the region's, turned
+ * a little by the name (`--tilt`), so neighbors that share a letter differ.
+ */
+.ico.is-mono {
+  --mono-h: calc(var(--h) + var(--tilt, 0));
+  background: oklch(0.225 calc(0.04 * var(--cs)) var(--mono-h));
+  box-shadow: inset 0 0 0 1px oklch(0.84 calc(0.1 * var(--cs)) var(--mono-h) / 0.16);
+}
+:root[data-theme="light"] .ico.is-mono {
+  background: oklch(0.945 calc(0.028 * var(--cs)) var(--mono-h));
+  box-shadow: inset 0 0 0 1px oklch(0.46 calc(0.12 * var(--cs)) var(--mono-h) / 0.18);
+}
+.mono {
+  font: 600 calc(var(--ico) * 0.33) / 1 var(--font-display);
+  font-stretch: 88%;
+  color: oklch(0.8 calc(0.07 * var(--cs)) var(--mono-h));
+}
+:root[data-theme="light"] .mono { color: oklch(0.45 calc(0.1 * var(--cs)) var(--mono-h)); }
+.ico.is-link {
+  border-radius: 50%;
+  background: var(--p-dim);
+  color: var(--p-text);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--p-accent) 45%, transparent);
+}
+
+.row-body { display: flex; flex-direction: column; min-width: 0; }
+/* The name has its line to itself; only the value the list is sorted by, or a compact row's marks, share it. */
+.row-top { display: flex; align-items: flex-start; gap: 8px; min-width: 0; min-height: 20px; }
+.row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font: 600 16px/20px var(--font-ui);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.row-measure {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 3px;
+  font: 600 12px/20px var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.row-measure.is-stars .icon { color: var(--star); }
+.row-since { font-weight: 500; color: var(--text-3); }
+/* A name too long for one line takes a second; the row is as tall as every other, and the summary gives the line up. */
+.row.has-long-name .row-name {
+  display: -webkit-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.row-sum {
+  display: -webkit-box;
+  margin-top: 1px;
+  overflow: hidden;
+  font: 400 13.5px/17.5px var(--font-ui);
+  color: var(--text-2);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+/* Where a search matched, when the name and the summary do not show it: one line, with the match marked. */
+.row-match { margin-top: 1px; overflow: hidden; font: 400 12.5px/17px var(--font-ui); color: var(--text-2); white-space: nowrap; text-overflow: ellipsis; }
+.row-match-where { color: var(--text-3); }
+.row mark { border-radius: 3px; background: color-mix(in oklch, var(--p-accent) 32%, transparent); color: inherit; }
+.row-match mark { color: var(--text); }
+.row.has-short-sum .row-sum { -webkit-line-clamp: 1; line-clamp: 1; }
+
+/* In place of a summary no source gives: the entry's own address, quietly. */
+.row-sum.is-address { color: var(--text-3); -webkit-line-clamp: 1; line-clamp: 1; overflow-wrap: anywhere; }
+.row-foot { display: flex; align-items: center; gap: 8px; min-width: 0; height: 18px; margin-top: 3px; }
+.row-meta {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 60px;
+  font: 600 12px/18px var(--font-ui);
+  color: var(--p-text);
+}
+.row-meta-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* When the date does not fit beside the category, it moves whole to a second line that is not shown, and its separator with it. */
+.row-meta-text.has-when { display: flex; flex-wrap: wrap; height: 18px; }
+.row-meta-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row-meta-when { flex: none; white-space: pre; }
+/* The chips on the line were chosen to fit beside the category's whole name; a caution that does not is shown all the same, and the name gives way to it. */
+.row-chips { display: flex; flex: 0 0 auto; gap: 4px; max-width: calc(100% - 68px); margin-left: auto; overflow: hidden; }
+.row-chips:first-child { max-width: 100%; margin-left: 0; }
+
+/* Above the rows: whose statement an anti-feature filter rests on, and under a sort by one source's downloads, what period the figures cover. */
+.list-note, .sort-note { margin: 0; padding: 2px var(--gutter) 6px; font: 400 12.5px/17px var(--font-ui); color: var(--text-3); }
+.row.is-compact .row-name { font-size: 15px; }
+.row.is-compact .row-sum { display: block; margin-top: 0; font-size: 13px; line-height: 17px; white-space: nowrap; text-overflow: ellipsis; }
+
+/* A resource is a link: its address is on the row, in the place's color, with the mark of a link that leaves the app. */
+.row-url {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 1px;
+  font: 500 12.5px/17px var(--font-ui);
+  color: var(--p-text);
+}
+.row-url-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.row.is-resource .row-sum { -webkit-line-clamp: 1; line-clamp: 1; }
+/* In a list short enough not to be windowed, a row is as tall as what it says: the whole title, three lines of description. */
+
+/* A compact row's second line: its labels, then as much of the summary as fits. */
+.row-line { display: flex; align-items: center; gap: 5px; min-width: 0; height: 18px; margin-top: 1px; }
+.row-line .row-sum { flex: 1 1 0; min-width: 0; margin-top: 0; }
+
+/* A reading list: each group one block of links, as About's links are, under its category's name, aligned with the titles. */
+.reading { display: grid; gap: 22px; padding: 14px var(--gutter) 40px; }
+.reading-group { display: grid; gap: 8px; min-width: 0; }
+.reading-group > .overline { padding-left: 14px; }
+.reading-block { border-radius: 18px; background: var(--surface); overflow: hidden; }
+.reading-block li + li { border-top: 1px solid var(--line); }
+.reading-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 12px 12px 14px; color: var(--text); text-decoration: none; }
+.reading-row:active { background: var(--surface-2); }
+.reading-row:focus-visible { outline-offset: -3px; border-radius: 18px; }
+.reading-row .icon { flex: none; margin-top: 2px; color: var(--text-3); }
+.reading-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.reading-title { display: -webkit-box; overflow: hidden; font: 600 16px/22px var(--font-ui); -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.reading-site { overflow: hidden; font: 400 13px/18px var(--font-ui); color: var(--text-2); text-overflow: ellipsis; }
+.reading-site > span { white-space: nowrap; }
+.reading-sum { display: -webkit-box; margin-top: 2px; overflow: hidden; font: 400 14px/20px var(--font-ui); color: var(--text-2); -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+
+/* ---------- Search ---------- */
+
+.search-head { padding: 8px var(--gutter) 6px; }
+.search-form {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 2px 0 14px;
+  border-radius: 24px;
+  background: var(--surface);
+}
+.search-form:focus-within { outline: 2px solid var(--p-accent, var(--text)); }
+.search-field { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; color: var(--text-2); }
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: 500 16px/1 var(--font-ui);
+  outline: none;
+  appearance: none;
+}
+.search-field input::placeholder { color: var(--text-3); opacity: 1; }
+.search-field input::-webkit-search-cancel-button { display: none; }
+
+.search-count {
+  flex: none;
+  padding: 0 4px 0 8px;
+  font: 600 13px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+.pins { padding: 6px 0; }
+.pins-list { display: flex; gap: 8px; margin-block: -4px; padding: 4px 44px 4px var(--gutter); overflow-x: auto; scrollbar-width: none; }
+.pins-list li { flex: none; }
+.pins-line.is-open .pins-list { flex-wrap: wrap; padding-right: var(--gutter); overflow: visible; }
+.pin {
+  --pill-h: 36px;
+  --pill-r: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 260px;
+  padding: 0 12px 0 10px;
+  background-color: var(--surface);
+  color: var(--text);
+  font: 600 13.5px/1.2 var(--font-ui);
+  cursor: pointer;
+}
+.pin:active { background-color: var(--surface-2); }
+.pin:disabled { opacity: 0.5; cursor: default; }
+.pin .icon { color: var(--text-3); }
+.pin-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pin-count { font: 700 14px/1 var(--font-display); font-variant-numeric: tabular-nums; color: var(--text-2); }
+
+.gone { margin: 12px var(--gutter) 0; padding: 12px 14px; border-radius: 16px; background: var(--surface); }
+.gone li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.gone-id { min-width: 0; font-size: 13.5px; color: var(--text-2); overflow-wrap: anywhere; }
+
+/* ---------- The sheets a list opens: filters, sort, the key to the marks ---------- */
+
+.panel { height: min(78dvh, 640px); }
+.panel.is-short { height: auto; }
+.bsheet-head .link-btn:disabled { opacity: 0.45; text-decoration: none; cursor: default; }
+.panel-group { padding: 10px 0 6px; }
+.panel-hint { margin-top: 6px; font: 400 12.5px/17px var(--font-ui); color: var(--text-2); text-wrap: pretty; }
+.panel-options { display: flex; flex-wrap: wrap; gap: 10px 6px; margin-top: 10px; }
+.panel .chip-plain { background-color: var(--surface-2); }
+.panel .chip-plain[aria-pressed="true"] { background-color: var(--text); color: var(--bg); }
+.chip-more { background-color: transparent; color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; }
+
+/* One anti-feature: its name, what it means in the index's words, and the two ways to filter by it. */
+.af-list { display: grid; gap: 8px; margin: 10px 0 6px; }
+.af { padding: 12px 14px 10px; border-radius: 16px; background: var(--surface-2); }
+.af-name { font: 600 14.5px/1.3 var(--font-ui); }
+.af-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.panel .af .chip-plain { background-color: var(--surface-3); }
+
+/* A list of exclusive choices, each with a line saying what it means. */
+.opts { display: grid; margin: 4px calc(var(--gutter) * -1) 0; }
+.opt {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+  width: 100%;
+  min-height: 48px;
+  padding: 11px var(--gutter);
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.opt:active { background: var(--surface-2); }
+.opt:focus-visible { outline-offset: -3px; border-radius: 14px; }
+.opt-mark { width: 20px; height: 20px; margin-top: 1px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--text-3); }
+.opt[aria-checked="true"] .opt-mark { box-shadow: inset 0 0 0 6px var(--text); }
+.opt-text { display: grid; gap: 2px; }
+.opt-label { font: 600 15px/1.35 var(--font-ui); }
+.opts-title { margin: 16px 0 8px; }
+.panel .seg-row { background: var(--surface-2); }
+.seg-btn {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 13px;
+  background: none;
+  color: var(--text-2);
+  font: 600 13.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.seg-btn[aria-checked="true"] { background: var(--surface-3); color: var(--text); }
+.seg-btn:focus-visible { outline-offset: -2px; }
+
+@media (min-width: 1024px) {
+  .bar-row { gap: 8px; height: auto; min-height: var(--bar-h); padding: 9px var(--gutter); overflow: visible; }
+  .bar-fit { display: flex; flex: 1 1 auto; align-items: center; gap: 6px; min-width: 0; }
+  .bar-active, .bar-suggest { display: flex; flex: none; align-items: center; gap: 6px; }
+  .bar-row > .bar-count { margin-left: auto; padding-left: 8px; }
+  .strip { height: auto; min-height: var(--strip-h); padding-bottom: 8px; }
+  .strip-chips { flex-wrap: wrap; row-gap: 16px; height: auto; margin-bottom: 0; padding-bottom: 0; overflow: visible; pointer-events: auto; }
+  .row { grid-template-columns: minmax(0, 1fr) 52px; margin: 0 12px; border-radius: 16px; }
+  .row-link { border-radius: 16px 0 0 16px; padding-left: 16px; }
+  .row-save { width: 52px; padding: 0; border-radius: 0 16px 16px 0; }
+  .pins-list { padding-right: var(--gutter); overflow: visible; }
+
+  .panel { width: min(720px, calc(100vw - 96px)); height: min(680px, calc(100dvh - 96px)); }
+  .panel.is-short { width: min(520px, calc(100vw - 96px)); height: fit-content; }
+}
+
+/* A category a search names: the way to the category itself, in its region's color, above the apps it found. */
+.cat-hits { padding: 2px var(--gutter) 8px; }
+.cat-hits ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.cat-hit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  min-height: 60px;
+  box-sizing: border-box;
+  padding: 9px 12px 9px 16px;
+  border-radius: 16px;
+  background: var(--p-container);
+  color: var(--p-on);
+  text-decoration: none;
+}
+.cat-hit-name { font: 700 16.5px/22px var(--font-display); }
+.cat-hit-sub { grid-column: 1; font: 400 13px/18px var(--font-ui); color: var(--p-on-2); }
+.cat-hit svg { grid-area: 1 / 2 / span 2; }
+.cat-hit mark { border-radius: 3px; background: color-mix(in oklch, var(--p-accent) 45%, transparent); color: inherit; }
+.cat-hit:active { background: var(--p-container-hi); }
+@media (hover: hover) and (pointer: fine) {
+  .cat-hit:hover { background: var(--p-container-hi); }
+}

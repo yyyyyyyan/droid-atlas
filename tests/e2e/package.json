@@ -1,0 +1,21 @@
+{
+  "name": "@droid-atlas/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node run.ts",
+    "serve": "node serve.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.19.2",
+    "axe-core": "4.14.0",
+    "typescript": "7.0.2"
+  }
+}

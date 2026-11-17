@@ -1,0 +1,300 @@
+/* Explore: the region map, the lenses, what is new; and the colored headers of the levels beneath it. */
+
+.home-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 var(--gutter);
+}
+.wordmark {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 9px;
+  white-space: nowrap;
+  font: 800 19px/1 var(--font-display);
+  letter-spacing: -0.01em;
+}
+.home-meta {
+  min-width: 0;
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  height: 18px;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--text-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.mosaic {
+  position: relative;
+  height: clamp(340px, calc(100svh - 300px), 600px);
+  margin: 0 var(--gutter);
+}
+
+.tile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--p-container);
+  color: var(--p-on);
+  transition: background-color 0.14s;
+}
+.tile:active { background: var(--p-container-hi); }
+.tile-link {
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+.tile-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.tile-link:focus-visible::after { outline: 2px solid var(--p-accent); outline-offset: -5px; }
+.tile-name {
+  font: 600 var(--name, 15.5px)/1.14 var(--font-display);
+  font-stretch: 88%;
+  text-wrap: balance;
+  overflow-wrap: normal;
+}
+.tile.is-narrow .tile-name { font-stretch: 80%; }
+.tile-count {
+  margin-top: 5px;
+  font: 800 var(--num, 40px)/0.92 var(--font-display);
+  font-stretch: 76%;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--p-accent);
+}
+.tile-cats {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--p-on-2);
+  pointer-events: none;
+}
+.tile-cats li { min-width: 0; overflow-wrap: normal; }
+.tile-cats .n { margin-left: 5px; opacity: 0.8; font-variant-numeric: tabular-nums; }
+/* The first visit: one paragraph saying what this is, and the way to the rest. */
+.intro {
+  margin: 0 var(--gutter) 12px;
+  padding: 12px 14px 4px;
+  border-radius: 18px;
+  background: var(--surface);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+.intro strong { color: var(--text); font-weight: 700; }
+.intro-actions { display: flex; align-items: center; gap: 24px; }
+.intro .link-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; color: var(--text); }
+
+.caption, .colophon {
+  margin: 8px var(--gutter) 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+.colophon { display: grid; gap: 24px; margin-top: 22px; padding-bottom: 24px; }
+.colophon a, .caption-link { position: relative; color: var(--text-2); text-underline-offset: 2px; white-space: nowrap; }
+.colophon a::before, .caption-link::before { content: ""; position: absolute; inset: -16px -2px; }
+.home-meta > span { white-space: pre; }
+.home-tagline { display: none; }
+.home-below { display: contents; }
+/* The guides are links, not apps: a line under the quick filters, not a region of the map. */
+.guides-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  margin: 12px var(--gutter) 0;
+  padding: 0 12px 0 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  font: 600 14.5px/1.2 var(--font-ui);
+  text-decoration: none;
+}
+.guides-line:active { background: var(--surface-2); }
+.guides-name { flex: 1; min-width: 0; }
+.guides-line .icon { flex: none; color: var(--text-3); }
+.home-new { container-type: inline-size; }
+.home-new .rows > :nth-child(n + 7) { display: none; }
+@container (min-width: 1000px) {
+  .home-new .rows { display: grid; grid-template-rows: repeat(4, auto); grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); column-gap: 24px; }
+  .home-new .rows > :nth-child(n + 7) { display: grid; }
+}
+.colophon { line-height: 2; }
+
+.home-section { margin-top: 18px; }
+.home-section > .overline, .section-head { margin: 0 var(--gutter) 8px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+/*
+ * A text link in a 44 px box; the negative margin keeps the heading's line
+ * where it was. The box sits mostly above the text, in the gap between the
+ * section before and this one's first row, so it overlaps neither.
+ */
+.section-more {
+  display: inline-flex;
+  align-items: flex-end;
+  flex: none;
+  min-width: 44px;
+  height: 44px;
+  margin: -20px -8px -7px;
+  padding: 0 8px 7px;
+  font: 600 13px/1.3 var(--font-ui);
+  color: var(--text);
+  text-underline-offset: 3px;
+}
+
+.lenses {
+  display: grid;
+  gap: 8px;
+  padding: 2px 44px 2px var(--gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.lens-row { display: flex; gap: 8px; width: max-content; }
+.lens {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding: 0 15px 0 5px;
+  border-radius: 22px;
+  background: var(--surface);
+  font: 600 14.5px/1 var(--font-ui);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.lens:active { background: var(--surface-2); }
+.lens-glyph {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface-3);
+}
+.lens-count {
+  font: 700 15px/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+/* ---------- Level headers and category chips ---------- */
+
+.place-head {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  column-gap: 2px;
+  padding: 2px var(--gutter) 10px 4px;
+  border-radius: 0 0 22px 22px;
+  background: var(--p-container);
+  color: var(--p-on);
+}
+.place-head > * { grid-column: 2; }
+.place-head > .icon-btn { grid-column: 1; }
+.head-main { display: grid; align-content: center; min-height: 44px; padding-top: 3px; }
+.place-head .overline { font-size: 10.5px; color: var(--p-on-2); }
+.place-head a { color: var(--p-on); text-underline-offset: 2px; }
+/* The way up to the region is one short word above the title: its target reaches past the line, which stays as tall as it was. */
+.place-head .overline a { position: relative; z-index: 1; display: inline-block; margin: -6px 0 -26px; padding: 6px 16px 26px 0; }
+.place-head h1 {
+  font: 700 22px/1.12 var(--font-display);
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+.head-sub { margin: 3px 0 0; font-size: 12.5px; line-height: 1.35; color: var(--p-on-2, var(--text-2)); }
+.plain-head .head-sub { color: var(--text-2); margin-top: 4px; font-size: 13.5px; }
+.head-glyph { display: inline-flex; margin-right: 7px; vertical-align: -2px; }
+.head-note {
+  margin: 8px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--p-accent);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--p-on);
+}
+.head-note footer { margin-top: 2px; font-size: 11.5px; color: var(--p-on-2); }
+
+/* Sideways: categories of a region, siblings of a category, regions of a lens. One line that scrolls on a phone. */
+.cats { padding: 6px 44px 6px var(--gutter); overflow-x: auto; scrollbar-width: none; }
+.cats ul { display: flex; flex-wrap: nowrap; gap: 10px 6px; width: max-content; }
+/* Opened, every name is in view at once, a block to read down and choose from. */
+.cats.is-open { padding-right: var(--gutter); overflow: visible; }
+.cats.is-open ul { flex-wrap: wrap; width: auto; }
+.fade-x.is-open { -webkit-mask-image: none; mask-image: none; }
+
+@media (min-width: 1024px) {
+  .home-head { height: 64px; padding-right: var(--gutter); }
+  .home-meta { font-size: 13.5px; }
+  .wordmark { font-size: 22px; }
+  .mosaic { height: clamp(440px, calc(100vh - 250px), 760px); }
+  .tile-name { font-stretch: 92%; }
+  .tile-cats { font-size: 13px; line-height: 24px; }
+  .tile-cats li { padding-block: 3px; line-height: 18px; }
+  .home-tagline { display: block; min-width: 0; overflow: hidden; font-size: 13.5px; color: var(--text-2); white-space: nowrap; text-overflow: ellipsis; }
+  .home-tagline a { color: var(--text); text-underline-offset: 3px; }
+  .intro { display: none; }
+
+  /* Under the map: the newest entries and the quick filters, together as wide as the map, 40 px apart. */
+  .home-below {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-areas: "new lenses";
+    align-items: start;
+    column-gap: 40px;
+    margin: 0 var(--gutter);
+  }
+  .home-new { grid-area: new; }
+  @media (max-width: 1199.98px) {
+    .home-below { grid-template-columns: minmax(0, 1fr) 300px; }
+  }
+  .home-lenses { grid-area: lenses; }
+  .home-below .home-section > .overline, .home-below .section-head { margin-inline: 0; }
+  .home-below .rows .row { margin-inline: 0; }
+  .lenses { display: grid; gap: 0; padding: 0; overflow: visible; }
+  .lens-row { display: contents; }
+  .lens { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; height: 44px; padding: 0 12px 0 5px; border-radius: 14px; background: none; }
+  .lens-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .home-below .guides-line { margin: 8px 0 0; padding-left: 10px; border-top: 1px solid var(--line); border-radius: 0; background: none; }
+
+  .place-head { column-gap: 10px; padding: 14px var(--gutter) 20px 12px; border-radius: 0 0 30px 30px; }
+  .place-head .overline { font-size: 11px; }
+  .place-head h1 { margin-top: 2px; font-size: 32px; }
+  .head-sub { font-size: 13.5px; }
+  .cats { padding: 12px var(--gutter) 4px; overflow: visible; }
+  .cats ul { width: auto; }
+  .cats .chip { max-width: 260px; }
+  .cats .chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/*
+ * From here there is room beside the column: the colored header reaches 72 px
+ * past the content on either side, the back control stands in that margin,
+ * and the title is on the content's left edge.
+ */
+@media (min-width: 1200px) {
+  .place-head {
+    --reach: 72px;
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    margin-inline: calc(var(--reach) * -1);
+    padding-left: calc(var(--reach) + var(--gutter));
+    padding-right: calc(var(--reach) + var(--gutter));
+  }
+  .place-head > * { grid-column: 1; }
+  .place-head > .icon-btn { position: absolute; grid-column: auto; top: 14px; left: 16px; }
+}

@@ -1,0 +1,41 @@
+name: Wrong or missing entry
+description: An app is shown wrong, is in the wrong place, or appears twice.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Droid Atlas shows what its sources state. If the mistake is in Android FOSS, awesome-shizuku, F-Droid or IzzyOnDroid, report it there too: the next daily build reads them again. To suggest a new app, propose it to one of the two lists.
+  - type: input
+    id: app
+    attributes:
+      label: App
+      description: The app's name, and its link in Droid Atlas if you can share it. Use Share in the app's details.
+      placeholder: Auxio, https://droidatlas.app/#/app/org.oxycblt.auxio
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is wrong
+      options:
+        - A name, link, description or tag
+        - The category or region
+        - Two entries are the same app
+        - One entry mixes two apps
+        - A fact, such as license, permissions or anti-features
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What Droid Atlas shows, and what it should show. Add a link that supports the correction.
+    validations:
+      required: true
+  - type: input
+    id: catalog
+    attributes:
+      label: Catalog build
+      description: Open About, then Data health. Next to Catalog build, select the copy button, then paste here.
+      placeholder: 70eb86091e0c22ef

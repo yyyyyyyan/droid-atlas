@@ -1,0 +1,478 @@
+/* Bottom sheets, and the app sheet: a bottom sheet on a phone, a panel beside the list when wide. */
+
+/*
+ * Every bottom sheet: the app's details, the filters, the sort choices, the
+ * key to the marks. `sheet-drag.ts` writes `height`, `transform` and
+ * `--sheet-scrim` while a finger holds the sheet and while it settles.
+ */
+.bsheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  display: none;
+  flex-direction: column;
+  width: 100%;
+  max-width: none;
+  max-height: calc(100dvh - 12px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 28px 28px 0 0;
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.bsheet[open] { display: flex; animation: rise 0.24s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.bsheet::backdrop { background: var(--scrim); opacity: var(--sheet-scrim, 1); }
+.bsheet[open]::backdrop { animation: fade-in 0.2s; }
+.bsheet.is-half { height: 64dvh; }
+.bsheet.is-full { height: 100dvh; max-height: 100dvh; }
+.bsheet.is-full:not(.is-dragging, .is-settling, .is-leaving) { border-radius: 0; }
+.bsheet.is-half, .bsheet.is-full { transition: height 0.22s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.bsheet.is-settling { transition: height 0.2s cubic-bezier(0.2, 0.9, 0.3, 1), transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.bsheet.is-settling::backdrop { transition: opacity 0.2s; }
+.bsheet.is-dragging { transition: none; }
+.bsheet.is-leaving { animation: sink 0.18s cubic-bezier(0.4, 0, 1, 1) forwards; }
+.bsheet.is-leaving::backdrop { animation: fade-out 0.18s forwards; }
+@keyframes rise {
+  from { transform: translateY(100%); }
+}
+@keyframes sink {
+  to { transform: translateY(100%); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+
+/* The parts a sheet is dragged by never scroll anything themselves, so the browser is given no gesture of its own there. */
+.bsheet-grip { touch-action: none; }
+.bsheet-handle { display: block; width: 36px; height: 4px; border-radius: 2px; background: currentColor; opacity: 0.45; }
+.bsheet-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  min-height: 60px;
+  padding: 12px 4px 0 var(--gutter);
+  border-bottom: 1px solid var(--line);
+  touch-action: none;
+}
+.bsheet-head > .bsheet-handle { position: absolute; top: 8px; left: 50%; margin-left: -18px; }
+.bsheet-title { margin-right: auto; font: 700 20px/1.2 var(--font-display); outline: none; }
+.bsheet-body { flex: 1; min-height: 0; padding: 4px var(--gutter) 16px; overflow-y: auto; overscroll-behavior: contain; }
+.bsheet-foot { flex: none; padding: 8px var(--gutter) calc(8px + var(--safe-b)); border-top: 1px solid var(--line); touch-action: none; }
+.bsheet-foot .btn { width: 100%; min-height: 48px; border-radius: 24px; font-size: 15.5px; }
+
+.sheet-frame { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; }
+
+.sheet-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  height: 44px;
+  padding: 0 4px;
+  background: var(--p-container);
+  color: var(--p-on);
+  touch-action: none;
+}
+.stepper { position: relative; z-index: 2; display: flex; align-items: center; min-width: 44px; }
+.stepper .icon-btn[aria-disabled="true"] { opacity: 0.35; cursor: default; }
+.stepper .icon-btn[aria-disabled="true"]:active { background: none; }
+.stepper-pos {
+  min-width: 58px;
+  text-align: center;
+  font: 600 13px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--p-on);
+  white-space: nowrap;
+}
+.sheet-grab {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--p-on-2);
+  cursor: grab;
+  touch-action: none;
+}
+.sheet-grab .bsheet-handle { opacity: 0.7; }
+.sheet-grab:focus-visible { outline-offset: -4px; border-radius: 28px 28px 0 0; }
+.sheet-close { position: relative; z-index: 2; }
+/* The strip's controls stand against the sheet's top edge, where a ring outside them would be cut off. */
+.sheet-top .icon-btn:focus-visible { outline-offset: -3px; }
+
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0 var(--sheet-pad, 16px) 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  outline: none;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 calc(var(--sheet-pad, 16px) * -1);
+  padding: 2px var(--sheet-pad, 16px) 14px;
+  background: var(--p-container);
+  color: var(--p-on);
+}
+/*
+ * Typing a note with the keyboard up: what is left of the screen goes to the
+ * sheet, the footer steps aside, and the name of the app the note is about
+ * stays in view above the field.
+ */
+html.has-keyboard .bsheet.sheet { height: 100dvh; max-height: 100dvh; border-radius: 0; }
+html.has-keyboard .sheet-foot { display: none; }
+html.has-keyboard .sheet-head { position: sticky; top: 0; z-index: 3; padding-bottom: 8px; }
+html.has-keyboard .sheet-head .ico { --ico: 40px; }
+html.has-keyboard .sheet-meta { display: none; }
+.sheet-title { flex: 1; min-width: 0; padding-top: 3px; }
+.sheet-title h2 {
+  font: 700 21px/1.14 var(--font-display);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+.sheet-meta { display: flex; flex-wrap: wrap; margin-top: 5px; overflow-x: clip; font-size: 13px; line-height: 18px; color: var(--p-on-2); }
+/* The dot between the author and the places belongs to the places, in a margin that falls outside the line when they start one: no line ends or begins with a separator. */
+.sheet-author:not(:last-child) { margin-right: 14px; }
+.sheet-author + .sheet-places { position: relative; max-width: calc(100% + 14px); margin-left: -14px; padding-left: 14px; }
+.sheet-author + .sheet-places::before { content: "·"; position: absolute; left: 4px; }
+/* The category and the region stay on one line, side by side, so their 44 px boxes never stack; a long category name gives way. */
+.sheet-places { display: flex; column-gap: 6px; min-width: 0; max-width: 100%; }
+.sheet-places a {
+  display: block;
+  flex: none;
+  min-width: 44px;
+  height: 44px;
+  margin: -13px;
+  padding: 0 13px;
+  overflow: hidden;
+  color: var(--p-on);
+  line-height: 44px;
+  text-overflow: ellipsis;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+.sheet-places a:first-child:not(:last-child) { flex: 0 1 auto; }
+/* The 44 px box is for a finger; the ring is drawn around the words, clear of the line above. */
+.sheet-places a:focus-visible { outline-offset: -11px; border-radius: 6px; }
+.sheet-url { margin-top: 3px; font: 500 13px/1.35 var(--font-ui); color: var(--p-on-2); overflow-wrap: anywhere; }
+.sheet-head .ico.is-link { background: var(--p-container-hi); color: var(--p-on); }
+.sheet-head .ico.is-mono { background: var(--p-container-hi); box-shadow: none; }
+.sheet-head .mono { color: var(--p-on); }
+
+.sheet-section { padding: 14px 0 4px; }
+.sheet-section > .overline { margin-bottom: 6px; }
+.sheet-terms { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.sheet-terms .fchip { height: 22px; padding: 0 8px; border-radius: 7px; font-size: 12px; line-height: 22px; }
+.sheet-summary { font-size: 16px; line-height: 1.4; }
+.sheet-warning {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--caution-bg);
+  color: var(--caution);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.sheet-warning .icon { margin-top: 1px; }
+
+.credit, .credit-note {
+  margin-top: 6px;
+  font: 600 11.5px/1.4 var(--font-ui);
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+.credit a { color: var(--text-2); text-underline-offset: 2px; }
+/* The caption's link sits right under Read more: its target reaches down, toward the heading, and not up. */
+.sheet-desc > .credit a { position: relative; z-index: 1; display: inline-block; min-width: 44px; margin-block: -2px -28px; padding-block: 2px 28px; }
+
+.note-field {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 400 16px/1.4 var(--font-ui);
+  resize: vertical;
+}
+.note-field::placeholder { color: var(--text-3); opacity: 1; }
+.note-field:focus-visible { outline: 2px solid var(--p-accent, var(--text)); outline-offset: 1px; }
+.note-edit label { color: inherit; }
+
+.sheet-desc { margin-top: 14px; }
+/* The description is reading text: the size and contrast of the summary above it, in paragraphs and lists. */
+.sheet-desc .desc { font-size: 15.5px; line-height: 1.5; color: var(--text); }
+.desc-blocks { white-space: normal; }
+.desc-blocks p { margin: 0 0 0.65em; white-space: pre-line; }
+.desc-blocks ul { margin: 0 0 0.65em; padding-left: 1.25em; list-style: disc; }
+.desc-blocks li { margin: 0 0 0.2em; padding-left: 0.1em; }
+.desc-blocks li::marker { color: var(--text-3); }
+.desc-blocks > :last-child { margin-bottom: 0; }
+.desc-blocks.is-clamped {
+  display: block;
+  max-height: 9em;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 1.8em), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 1.8em), transparent);
+}
+.retry-btn { display: inline-block; margin-block: -12px; padding-block: 12px; font: inherit; color: var(--text-2); }
+
+/* Folded away at the foot: each catalog's own listing, and the icon's credit. */
+.sheet-more { margin-top: 12px; border-top: 1px solid var(--line); }
+.sheet-more summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  font: 700 11px/1.3 var(--font-ui);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  list-style: none;
+  cursor: pointer;
+}
+.sheet-more summary::-webkit-details-marker { display: none; }
+.sheet-more[open] summary .icon { rotate: 180deg; }
+.sheet-more-body { display: grid; gap: 8px; padding-bottom: 6px; }
+.sheet-more-body .listing + .listing { margin-top: 0; }
+
+/* A sentence said in place of something missing, with the page that has it. */
+
+/* Statistics: a figure and the source that states it, never a sum across sources. */
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+.stat { padding: 10px 12px; border-radius: 14px; background: var(--surface-2); }
+.stat:only-child { grid-column: 1 / -1; }
+.stat dt { font: 600 11.5px/1.3 var(--font-ui); letter-spacing: 0.02em; color: var(--text-2); }
+.stat dd {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  margin-top: 4px;
+  font: 700 17px/1.2 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+.stat dd .icon { color: var(--star); }
+.stat-ago { flex-basis: 100%; font: 500 12.5px/1.3 var(--font-ui); color: var(--text-2); }
+.stat-group { margin-top: 14px; }
+.stat-title { margin: 0 0 2px; font: 600 13.5px/1.3 var(--font-ui); color: var(--text-2); }
+/* Source, figure, date. A figure is never broken: where the three do not fit one line, the date drops under it. */
+.stat-rows li {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.stat-rows li:first-child { border-top: 0; }
+.stat-source { flex: 0 0 92px; font-size: 13.5px; color: var(--text-2); }
+.stat-main { flex: 0 1 auto; min-width: 0; font-size: 14.5px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stat-when { flex: 1 0 auto; text-align: right; font-size: 13px; color: var(--text-2); }
+.stat-note { display: block; font-size: 11.5px; line-height: 1.4; color: var(--text-3); }
+.stat-foot { margin-top: 2px; font-size: 12.5px; }
+.stat-foot a { display: inline-flex; align-items: center; min-height: 44px; color: var(--text-2); text-underline-offset: 3px; }
+
+.facts { margin-top: 2px; }
+.fact {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.fact:first-child { border-top: 0; }
+.fact dt { font-size: 13.5px; color: var(--text-2); }
+.fact-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; align-items: baseline; }
+.fact-line + .fact-line { margin-top: 6px; }
+/* A value keeps its own width beside the sources that state it; the sources wrap in what is left. */
+.fact-line.has-source { grid-template-columns: fit-content(70%) minmax(0, 1fr); }
+.fact-value { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 14.5px; font-weight: 500; overflow-wrap: anywhere; }
+.fact-caution .fact-value { color: var(--caution); }
+.fact-good .fact-value { color: var(--good); }
+.fact-place .fact-value { color: var(--p-text); }
+.fact-source { justify-self: end; text-align: right; font: 600 11.5px/1.4 var(--font-ui); letter-spacing: 0.02em; color: var(--text-3); }
+.fact-detail { grid-column: 1 / -1; margin-top: 2px; font-size: 12.5px; line-height: 1.4; color: var(--text-2); text-wrap: pretty; }
+.note {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.desc { font-size: 14.5px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.desc.is-clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+}
+.desc-more { display: block; min-height: 44px; }
+
+.listing { padding: 12px 14px; border-radius: 18px; background: var(--surface-2); }
+.listing + .listing { margin-top: 8px; }
+.listing > .credit { margin: 0 0 8px; }
+.listing-name { margin-bottom: 6px; font-size: 13.5px; color: var(--text-2); }
+.listing-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.listing-facts { display: grid; gap: 10px; margin-top: 10px; font-size: 13.5px; line-height: 1.4; }
+.listing > .credit + .listing-facts { margin-top: 2px; }
+.listing-facts div { display: grid; grid-template-columns: 104px minmax(0, 1fr); column-gap: 10px; align-items: baseline; }
+.listing-facts dt { color: var(--text-2); }
+.listing-facts dd { min-width: 0; overflow-wrap: anywhere; }
+/* A link in a row keeps the row's line and gets its 44 px of height from padding that the margin gives back. */
+.listing-facts a { display: inline-block; margin-block: -13px; padding-block: 13px; color: var(--p-text); text-underline-offset: 2px; }
+.listing-aside { color: var(--text-2); }
+
+.acts { display: grid; gap: 8px; }
+.act-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-radius: 20px;
+  background: var(--surface-2);
+}
+.act {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  min-height: 64px;
+  padding: 10px 4px 10px 10px;
+  border-radius: 20px 8px 8px 20px;
+  text-decoration: none;
+}
+.act:active { background: color-mix(in oklch, currentColor 8%, transparent); }
+.act:focus-visible { outline-offset: -3px; }
+.act-glyph { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--surface-3); }
+.act-text { display: grid; min-width: 0; }
+.act-label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
+.act-detail { font-size: 12.5px; color: var(--text-2); overflow-wrap: break-word; }
+.act-note { margin-top: 2px; font-size: 12.5px; line-height: 1.35; color: var(--text-3); }
+.act-copy { margin-right: 6px; color: var(--text-2); }
+/* What a link needs before it can work, under the row it belongs to: quiet text, and a link tall enough to tap. */
+.act-needs { grid-column: 1 / -1; margin: -4px 0 0; padding: 0 14px 6px 62px; font-size: 12.5px; line-height: 1.35; color: var(--text-3); }
+.act-needs a { position: relative; z-index: 1; display: inline-block; margin-block: -14px; padding-block: 14px; color: var(--text-2); font-weight: 600; text-underline-offset: 2px; }
+.act-store { background: var(--p-container); color: var(--p-on); }
+.act-store .act-glyph { background: var(--p-accent); color: var(--p-on-accent); }
+.act-store .act-detail, .act-store .act-note, .act-store .act-copy { color: var(--p-on-2); }
+.act-import .act-glyph { border-radius: 13px; background: none; box-shadow: inset 0 0 0 1.5px var(--p-accent); color: var(--p-accent); }
+.act-source .act-glyph { border-radius: 13px; }
+.act-item.is-stale { background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.act-item.is-stale .act-glyph { background: var(--surface-2); color: var(--text-2); }
+.act-item.is-stale .act-detail { color: var(--text-3); }
+.act-item.is-stale .act-note { color: var(--caution); }
+.share-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.share-row .btn { background: var(--surface-2); }
+.share-row .btn[aria-expanded="true"] { background-color: var(--p-accent); color: var(--p-on-accent); }
+.share-code { display: flex; align-items: center; gap: 16px; margin-top: 12px; scroll-margin-bottom: 16px; }
+.share-qr { display: block; flex: none; border-radius: 4px; }
+.share-code-text { margin: 0; max-width: 22ch; font-size: 14px; line-height: 20px; color: var(--text-2); }
+/* Only a computer: a mouse or a trackpad and the wide layout, where a phone is the other screen. */
+@media (max-width: 1023.98px), (hover: none), (pointer: coarse), (pointer: none) {
+  .sheet-section .only-desk { display: none; }
+}
+
+.sheet-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 8px var(--sheet-pad, 16px) calc(8px + var(--safe-b));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  touch-action: none;
+}
+.save-btn { min-height: 48px; padding: 0 18px 0 14px; border-radius: 24px; background: var(--surface-3); }
+.save-btn[aria-pressed="true"] { background: var(--p-dim); color: var(--p-text); }
+.btn-primary {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  border-radius: 24px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 15.5px;
+}
+.btn-primary:active { background: var(--text); filter: brightness(0.9); }
+.btn-primary.is-stale { background: var(--surface-3); color: var(--text); }
+.btn-text { display: grid; min-width: 0; text-align: left; }
+/* "View on" and "Google Play" are two items of one line. Where both do not fit, the first wraps to a line that is not shown, and the place stands alone. */
+.btn-main { display: flex; flex-wrap: wrap-reverse; align-content: flex-end; height: 18px; overflow: hidden; line-height: 18px; white-space: nowrap; }
+.btn-verb { white-space: pre; }
+.btn-what { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.btn-sub { font-size: 11.5px; font-weight: 500; color: var(--caution); }
+.foot-none { flex: 1; text-align: center; }
+
+/* The keyboard shortcuts, in the dialog `?` opens. */
+.keys { display: grid; gap: 10px; margin: 4px 0 8px; font-size: 14px; color: var(--text-2); }
+.keys div { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; }
+.keys dt { display: flex; gap: 3px; }
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 600 12px/1 var(--font-ui);
+}
+
+@media (min-width: 1024px) {
+  .sheet.is-panel {
+    --sheet-pad: 24px;
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    width: var(--panel-w);
+    background: var(--surface);
+    border-left: 1px solid var(--line);
+    overflow: hidden;
+    animation: panel-in 180ms ease-out;
+  }
+  .bsheet {
+    inset: 0;
+    width: min(560px, calc(100vw - 96px));
+    height: fit-content;
+    max-height: min(680px, calc(100dvh - 96px));
+    margin: auto;
+    border-radius: 28px;
+  }
+  .bsheet[open] { animation: none; }
+  .bsheet-handle { display: none; }
+  .bsheet-head { padding-top: 4px; min-height: 56px; }
+  .sheet.is-panel:focus-visible { outline-offset: -3px; }
+
+}
+
+@keyframes panel-in {
+  from { transform: translateX(100%); }
+}

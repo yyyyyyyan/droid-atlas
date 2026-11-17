@@ -1,0 +1,158 @@
+version = 1
+
+# Licensing of every file in the repository (REUSE 3.3). docs/LICENSING.md §2.H
+# gives the reasoning. When several annotations match a file, the last one
+# wins, so specific entries follow general ones. There is deliberately no
+# catch-all: a new kind of file (a font, an image, a fixture) fails
+# `reuse lint` until someone decides its license here.
+
+# Code, tests, styles and documentation.
+[[annotations]]
+path = ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.mjs", "**/*.cjs", "**/*.css", "**/*.html", "**/*.md", "**/*.svg"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Droid Atlas contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# The app's own icon, rendered from app/icons/icon.svg by the app's icon script.
+[[annotations]]
+path = "app/public/icons/*.png"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Droid Atlas contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# README screenshot of the Explore screen: the app's own interface and
+# Droid Atlas's own regions and counts.
+[[annotations]]
+path = "docs/images/explore-*.webp"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Droid Atlas contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# README screenshots of the Music Players category and of one app's details.
+# They show six entries of Android FOSS (GPL-3.0-only) with the summary and
+# icon, and for Auxio the description, that the F-Droid index carries for
+# each: the app's own material under the app's license, which is GPL-3.0-only
+# for five of the six and GPL-3.0-or-later for Gramophone. F-Droid index text
+# may also be under AGPL-3.0-only (fdroiddata).
+[[annotations]]
+path = ["docs/images/category-*.webp", "docs/images/app-*.webp"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = [
+  "2026 Droid Atlas contributors",
+  "Android FOSS contributors <https://github.com/offa/android-foss>",
+  "F-Droid contributors <https://gitlab.com/fdroid/fdroiddata>",
+  "Alexander Capehart (Auxio) <https://github.com/OxygenCobalt/Auxio>",
+  "mardous (Booming Music) <https://github.com/mardous/BoomingMusic>",
+  "sosauce (CuteMusic) <https://github.com/sosauce/Chocola>",
+  "Vishnu Sanal T (Dialog Music Player) <https://github.com/VishnuSanal/DialogMusicPlayer>",
+  "Fossify (Fossify Music Player) <https://github.com/FossifyOrg/Music-Player>",
+  "nift4 (Gramophone) <https://github.com/FoedusProgramme/Gramophone>",
+]
+SPDX-License-Identifier = "GPL-3.0-or-later AND GPL-3.0-only AND AGPL-3.0-only"
+
+# Configuration and Droid Atlas's own data: workspace and package manifests,
+# compiler and tool settings, workflows, and the pipeline's hand-maintained
+# decisions (accepted baseline, icon policy, identity overrides, category
+# placements).
+[[annotations]]
+path = [
+  "**/package.json",
+  "**/tsconfig*.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "**/.gitignore",
+  ".pre-commit-config.yaml",
+  "_typos.toml",
+  ".github/**",
+  "scripts/public-export.json",
+  "pipeline/accepted-baseline.json",
+  "pipeline/icon-policy.json",
+  "pipeline/identity-overrides.json",
+  "pipeline/placements.json",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Droid Atlas contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+# The licensing analysis quotes SPDX header examples, which must not be read
+# as the document's own license.
+[[annotations]]
+path = "docs/LICENSING.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Droid Atlas contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# SPDX License List metadata (ids and flags), vendored from
+# spdx/license-list-data v3.29.0, which is published under CC0-1.0.
+[[annotations]]
+path = "pipeline/spdx/licenses.json"
+precedence = "override"
+SPDX-FileCopyrightText = "The Linux Foundation and its contributors <https://github.com/spdx/license-list-data>"
+SPDX-License-Identifier = "CC0-1.0"
+
+# The app's icon set holds one drawing made from another project's work: the
+# F-Droid mark, redrawn from fdroid-logo-2015/fdroid-logo.svg of
+# https://gitlab.com/fdroid/artwork (CC-BY-SA-3.0 OR GPL-3.0-or-later there;
+# taken under GPL-3.0-or-later).
+[[annotations]]
+path = "app/src/ui/Icon.tsx"
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "2026 Droid Atlas contributors",
+  "2012 William Theaker",
+  "2013 Robert Martinez",
+  "2015 Andrew Nayenko",
+]
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Parser tests quoting lines of the Android FOSS README (GPL-3.0-only).
+[[annotations]]
+path = "pipeline/test/android-foss.test.ts"
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "2026 Droid Atlas contributors",
+  "Android FOSS contributors <https://github.com/offa/android-foss>",
+]
+SPDX-License-Identifier = "GPL-3.0-or-later AND GPL-3.0-only"
+
+# Parser tests quoting two headings of awesome-shizuku (CC-BY-SA-3.0).
+[[annotations]]
+path = "pipeline/test/awesome-shizuku.test.ts"
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "2026 Droid Atlas contributors",
+  "awesome-shizuku contributors <https://github.com/timschneeb/awesome-shizuku>",
+]
+SPDX-License-Identifier = "GPL-3.0-or-later AND CC-BY-SA-3.0"
+
+# Research notes quoting three awesome-shizuku entries (CC-BY-SA-3.0).
+[[annotations]]
+path = "docs/research/sources.md"
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "2026 Droid Atlas contributors",
+  "awesome-shizuku contributors <https://github.com/timschneeb/awesome-shizuku>",
+]
+SPDX-License-Identifier = "GPL-3.0-or-later AND CC-BY-SA-3.0"
+
+# Private development material, never exported (scripts/public-export.json).
+# The legacy single-file catalog and the prototype screenshots carry Android
+# FOSS entries and F-Droid / IzzyOnDroid summaries; summaries are also under
+# each app's own license.
+[[annotations]]
+path = ["data/catalog.json", "prototypes/**/*.png"]
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "2026 Droid Atlas contributors",
+  "Android FOSS contributors <https://github.com/offa/android-foss>",
+  "F-Droid contributors <https://gitlab.com/fdroid/fdroiddata>",
+  "IzzyOnDroid <https://codeberg.org/IzzyOnDroid/repodata>",
+]
+SPDX-License-Identifier = "GPL-3.0-or-later AND GPL-3.0-only AND AGPL-3.0-only AND AGPL-3.0-or-later"
+
+# Leak-scanner deny-list: private, never exported.
+[[annotations]]
+path = "scripts/leak-scan.deny.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Droid Atlas contributors"
+SPDX-License-Identifier = "CC0-1.0"

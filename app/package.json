@@ -1,0 +1,35 @@
+{
+  "name": "@droid-atlas/app",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4320 --strictPort",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.sw.json && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4320 --strictPort",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.sw.json",
+    "data:fixture": "node scripts/write-fixture-build.ts",
+    "measure": "node scripts/measure-model.ts",
+    "icons": "node scripts/build-icons.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "5.3.0",
+    "@fontsource-variable/figtree": "5.3.0",
+    "@preact/signals": "2.11.4",
+    "lean-qr": "2.7.4",
+    "preact": "11.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "sharp": "0.35.5",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.1.0"
+  }
+}

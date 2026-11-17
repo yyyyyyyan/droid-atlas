@@ -1,0 +1,124 @@
+{
+  "deny": [
+    {
+      "app": "github-thedjchi-shizuku",
+      "reason": "the repository's launcher icon is Shizuku's, which Shizuku's README reserves for displaying Shizuku itself",
+      "date": "2026-11-12"
+    },
+    {
+      "app": "github-thejaustin-shizukuplus",
+      "reason": "the repository's launcher icon is Shizuku's, which Shizuku's README reserves for displaying Shizuku itself",
+      "date": "2026-11-12"
+    },
+    {
+      "app": "github-madkongo-callvault",
+      "reason": "the repository's launcher icon is ShizuCallRecorder's logo, whose license's additional terms (GPLv3 section 7) prohibit use of its logos without the author's written permission",
+      "date": "2026-11-13"
+    }
+  ],
+  "denySources": [],
+  "sources": [
+    {
+      "app": "android-foss-wireguard",
+      "rule": "repo-launcher",
+      "url": "https://raw.githubusercontent.com/WireGuard/wireguard-android/e7b3a3c118836e112620b1302a8ba1873ad4daac/ui/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+      "sha256": "68f5a8e8b9cc8a0713ec1d00a4db605f3bb7e4a5bd739a1cc3f040453265b933",
+      "revision": "e7b3a3c118836e112620b1302a8ba1873ad4daac",
+      "reason": "launcher icon in WireGuard/wireguard-android, the project's official GitHub mirror of git.zx2c4.com/wireguard-android, which the entry links",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "org.krita",
+      "rule": "repo-launcher",
+      "url": "https://raw.githubusercontent.com/KDE/krita/1cc1d5c7e335b2160f18ca616159cefe58268a6d/packaging/android/apk/ic_launcher-playstore.png",
+      "sha256": "82da5d0263f1c187f71f44e098e778b5887fdc16e0b175ffecba339a2f4b5483",
+      "revision": "1cc1d5c7e335b2160f18ca616159cefe58268a6d",
+      "reason": "the Android build's Play Store icon in KDE/krita, KDE's GitHub mirror of invent.kde.org/graphics/krita",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "android-foss-eden",
+      "rule": "repo-launcher",
+      "url": "https://git.eden-emu.dev/api/v1/repos/eden-emu/eden/raw/src/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png?ref=e9661b2a017c4b349de04764df296de12bc38942",
+      "sha256": "c8889dde3176ee4bf34218f6568259fe57c63527380a75eb0404f044fbfef27b",
+      "revision": "e9661b2a017c4b349de04764df296de12bc38942",
+      "reason": "launcher icon of the Android app in eden-emu/eden on the project's own Forgejo, which the entry links",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "org.petero.droidfish",
+      "rule": "repo-launcher",
+      "url": "https://raw.githubusercontent.com/peterosterlund2/droidfish/06948d542f5b354624a8d88fc5d6f3019669e539/DroidFishApp/src/main/ic_launcher-web.png",
+      "sha256": "fe652abffb7f631176a546b04a2993b6aa9a22b763b0b115a54f27777019315b",
+      "revision": "06948d542f5b354624a8d88fc5d6f3019669e539",
+      "reason": "the 512 px launcher icon beside the app module's sources; the resource bitmaps are 72 px at most",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "github-salat39-gsplit",
+      "rule": "repo-launcher",
+      "url": "https://raw.githubusercontent.com/Salat39/GSplit/a0598fda64ba472b2f54b7b735c943f56a335609/core/resources/src/main/ic_launcher-playstore.png",
+      "sha256": "908bc0d24c9faa8b4cb59657130fb50954e79d4b6cd3422c7873a1ca6de6a0fb",
+      "revision": "a0598fda64ba472b2f54b7b735c943f56a335609",
+      "reason": "the Play Store icon in the project's shared resources module (core/resources), outside the module discovery reads",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "github-rayshift-translatefgo",
+      "rule": "repo-launcher",
+      "url": "https://raw.githubusercontent.com/rayshift/translatefgo/cc2c4e5c281601a929754e2e423dd45098a41790/RayshiftTranslateFGO.Android/Resources/mipmap-xxxhdpi/ic_launcher.png",
+      "sha256": "3793410e9095329fd5ca9bd04ae2c5dc57df247cbe3ff9277761adfccea1e9ba",
+      "revision": "cc2c4e5c281601a929754e2e423dd45098a41790",
+      "reason": "launcher icon of the Android project, whose resources sit outside the src/<set>/res layout discovery reads",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "android-foss-tor-browser",
+      "rule": "store-listing",
+      "url": "https://play-lh.googleusercontent.com/TIJ5UlSUZv84PBG8iKSeANijhTdwM07seW9uAmLBsdU7Xis5eaaolLQooIZzAYUOhK94YjvPVFY9R13jdVewOQ=s512",
+      "sha256": "0a849792570c6e7e79dd2eb2382073d4154ecd0468f15278901396d09475c003",
+      "reason": "icon of The Tor Project's own Google Play listing for Tor Browser (org.torproject.torbrowser)",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "android-foss-collabora-office",
+      "rule": "store-listing",
+      "url": "https://play-lh.googleusercontent.com/aXlKBRFHrggoiN7q4EOfM128QHvEeqRK3tediPBdzvvoJvPIil5R0Zmy7zw9RE_f69U5B7UkAXAPwWzqHkHW4Q=s512",
+      "sha256": "7f9e8a3339e332a29f1eada16c22910d2c215e5e0307290b8cd17c3cb294f42b",
+      "reason": "icon of Collabora Productivity's own Google Play listing for Collabora Office (com.collabora.libreoffice); the website's icon is not square",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "itkach.aard2",
+      "rule": "store-listing",
+      "url": "https://play-lh.googleusercontent.com/gJ7hveqvZFDbVXoecY82eEC08bMNC0I_mvAWWI24b3HAivP9K9Y9bxKfXB2ToFLmX_1sUnL2lmY45BemH8NQjg=s512",
+      "sha256": "7d0f060ba8de7b3201c28a94b881d2edf09b6a3cd3177e201beb8c2cf15dae64",
+      "reason": "icon of the author's own Google Play listing for the same package; F-Droid's index lists no icon for it",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "org.witness.sscphase1",
+      "rule": "store-listing",
+      "url": "https://play-lh.googleusercontent.com/wRqfJigWUZRovH4ZDSkf82K8Uf1yIoThW-YSHvsW_MubqxdvTAkfO34FPZMBj9BXIGjJ2L5mlinRGf5WjZGdiQ=s512",
+      "sha256": "0ab47d85b0468715ac2ba788cf75fc71818037889e01b33ee345b824a6ae4a3c",
+      "reason": "icon of the Guardian Project's own Google Play listing for the same package; the repository's launcher bitmaps are 72 px at most",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "android-foss-twrp",
+      "rule": "store-listing",
+      "url": "https://play-lh.googleusercontent.com/2r3TbSQscysftwhWfdID-9ZzscMmY8__EwjwripKSJHg8VxB8dBSA3HYDBZ58rY7n5m-CgzE_hOUEzIuuBXbdw=s512",
+      "sha256": "0c5a663def05b8cf6b1c7cf163d1956817e6a96e8e58a646c80ae028ad326b69",
+      "reason": "the TWRP logo, as the icon of Team Win's official TWRP app on Google Play (me.twrp.twrpapp); the recovery itself has no store listing and twrp.me declares no icon",
+      "date": "2026-11-13"
+    },
+    {
+      "app": "android-foss-blisslauncher",
+      "rule": "forge-avatar",
+      "url": "https://gitlab.e.foundation/uploads/-/system/project/avatar/1519/Bliss_Launcher_108x108.png?v=1794491735",
+      "sha256": "5efda316b9f2568b222df1c8875ad0e4a704620ec25f039564e794242a566433",
+      "reason": "the project avatar of e/os/BlissLauncher3 on /e/ Foundation's GitLab, the repository the entry links",
+      "date": "2026-11-13"
+    }
+  ]
+}
