@@ -334,6 +334,15 @@ function renderTaxonomy(catalog: Catalog, taxonomy: TaxonomyDescription): string
   return out;
 }
 
+/**
+ * The catalog's size as the app states it: `installable` counts the records a
+ * source lists as an app, `resources` the guides and links listed beside them.
+ */
+export function catalogSize(apps: readonly { listings: readonly { kind: "app" | "resource" }[] }[]): { installable: number; resources: number } {
+  const installable = apps.filter((a) => a.listings.some((l) => l.kind === "app")).length;
+  return { installable, resources: apps.length - installable };
+}
+
 export function writeReport(outDir: string, report: BuildReport): void {
   mkdirSync(outDir, { recursive: true });
   const { catalog, identity, ...rest } = report;
@@ -342,6 +351,7 @@ export function writeReport(outDir: string, report: BuildReport): void {
     catalog: {
       hash: catalog.hash,
       apps: catalog.apps.length,
+      ...catalogSize(catalog.apps),
       categories: catalog.categories.length,
       redirects: Object.keys(catalog.redirects).length,
       coverage: coverage(catalog),
