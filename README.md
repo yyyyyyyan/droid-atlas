@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://github.com/yyyyyyyan/droid-atlas/actions/workflows/refresh.yml"><img src="https://img.shields.io/github/actions/workflow/status/yyyyyyyan/droid-atlas/refresh.yml?label=daily%20refresh" alt="Daily refresh status"></a>
-  <a href="https://droidatlas.app/#/about/health"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdroidatlas.app%2Fdata%2Freport.json&query=%24.catalog.apps&label=catalog&suffix=%20entries&color=555" alt="Number of entries in the live catalog"></a>
+  <a href="https://droidatlas.app/#/about/health"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdroidatlas.app%2Fdata%2Freport.json&query=%24.catalog.installable&label=catalog&suffix=%20apps&color=555" alt="Number of apps in the live catalog"></a>
 </p>
 
 <p align="center">
