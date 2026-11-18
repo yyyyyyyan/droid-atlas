@@ -259,6 +259,7 @@
   "com.flx_apps.digitaldetox": { "category": "focus-screen-time", "reason": "A digital detox app." },
   "neth.iecal.curbox": { "category": "focus-screen-time", "reason": "Reduces screen addiction." },
   "awesome-shizuku-ripple": { "category": "focus-screen-time", "reason": "A screen-time and app blocker." },
+  "dev.astraedus.nudge": { "category": "focus-screen-time", "reason": "An app blocker that delays opening an app." },
 
   "com.danefinlay.ttsutil": { "category": "speech-voice", "reason": "A text-to-speech utility." },
   "com.pilot51.voicenotify": { "category": "speech-voice", "reason": "Speaks notifications aloud with text-to-speech." },

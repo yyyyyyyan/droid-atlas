@@ -5,8 +5,8 @@ regions. The sources' categories are what the sources say; they stay on each
 listing and are shown in the app sheet as the source's wording. This page is
 generated from the build by `pipeline/scripts/taxonomy-doc.ts`; the table
 itself is `pipeline/taxonomy.ts` and the placements are
-`pipeline/placements.json`. Build of 2026-11-17: 1,298 entries,
-116 categories, 139 upstream categories, 247 placements.
+`pipeline/placements.json`. Build of 2026-11-18: 1,298 entries,
+116 categories, 139 upstream categories, 248 placements.
 
 ## How an app is filed
 
@@ -17,7 +17,7 @@ itself is `pipeline/taxonomy.ts` and the placements are
    upstream category is a catch-all.
 3. **An app whose every listing is in a catch-all** waits in the remainder of
    that catch-all's region and is listed in the build report as awaiting
-   placement. Today 1 app waits.
+   placement. Today none waits: every such app is placed.
 
 Each app is in exactly one category and one region, so region and category
 counts add up to the catalog. An upstream category missing from the table goes
@@ -219,7 +219,7 @@ region. awesome-shizuku's **Archived apps** is a status, not a kind of app.
 | Scanners & PDF Tools | 8 | Android FOSS: Document Scanner & Editor; 1 placed |
 | Clocks & Timers | 9 | Android FOSS: Clock & Time; 2 placed |
 | Translators | 6 | Android FOSS: Translation; 1 placed |
-| Focus & Screen Time | 6 | 6 placed |
+| Focus & Screen Time | 7 | 7 placed |
 | Speech & Voice | 6 | Android FOSS: Text-to-Speech; 3 placed |
 | Text Editors | 5 | Android FOSS: Text Editors |
 | Barcode & QR Scanners | 4 | Android FOSS: Barcode & QR Code Scanner |
@@ -228,7 +228,7 @@ region. awesome-shizuku's **Archived apps** is a status, not a kind of app.
 | Clipboard Tools | 3 | 3 placed |
 | Flashcards | 3 | Android FOSS: Flashcard |
 | Office Suites | 2 | Android FOSS: Office |
-| Other Productivity Tools (remainder) | 2 | 1 placed |
+| Other Productivity Tools (remainder) | 1 | 1 placed |
 
 ### Web & World: 84 apps
 
@@ -661,6 +661,7 @@ nobody would look for it there; the rest come from catch-alls.
 - **DetoxDroid** (`com.flx_apps.digitaldetox`): A digital detox app.
 - **Curbox** (`neth.iecal.curbox`): Reduces screen addiction.
 - **Ripple** (`awesome-shizuku-ripple`): A screen-time and app blocker.
+- **Nudge** (`dev.astraedus.nudge`): An app blocker that delays opening an app.
 
 ### Speech & Voice
 
@@ -752,7 +753,7 @@ belongs. Each is placed there on purpose, with its reason above.
 - **Other Devices** (Device-specific): RedTrigger, MindControl, Evolve_Launcher_v2.
 - **Other Communication Apps** (Communication): none today.
 - **Other Media Apps** (Media): none today.
-- **Other Productivity Tools** (Productivity): quickdash, Nudge (awaiting placement).
+- **Other Productivity Tools** (Productivity): quickdash.
 - **Other Web & World Apps** (Web & World): Offline Web Search, AirData UAV.
 - **Other Games** (Games): Burger Party, Endless Sky, Luanti, Space Vertex Multiplayer.
 
