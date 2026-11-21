@@ -219,6 +219,16 @@ test("comparison gates: a source's entries, a large category past a three-listin
   smaller.apps = smaller.apps.filter((a) => !["org.ex.tool0", "org.ex.tool1", "org.ex.tool2", "org.ex.tool3"].includes(a.id));
   assert.ok(failedGates(smaller, now.context).includes("category:android-foss/apps-tools"));
 
+  const withTools = (count: number): Catalog => {
+    const padded = clone(now.catalog);
+    const tool = padded.apps.find((a) => a.id === "org.ex.tool0")!;
+    for (let i = 12; i < count; i++) padded.apps.push({ ...clone(tool), id: `org.ex.pad${i}` });
+    return padded;
+  };
+  const hundred = { ...now.context, previous: withTools(100) };
+  assert.ok(!failedGates(withTools(95), hundred).includes("category:android-foss/apps-tools"));
+  assert.ok(failedGates(withTools(94), hundred).includes("category:android-foss/apps-tools"));
+
   const emptier = clone(now.catalog);
   for (const app of emptier.apps) app.summary = null;
   assert.ok(failedGates(emptier, now.context).includes("coverage:summary"));
