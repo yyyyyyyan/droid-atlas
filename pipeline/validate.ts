@@ -27,6 +27,8 @@ export const LIMITS = {
   countDrop: 0.05,
   /** Categories smaller than this in the previous catalog are not compared. */
   categoryMinimum: 10,
+  /** Listings any category may lose in one build, so routine curation of a small category passes. */
+  categoryDropFloor: 3,
   /** Largest allowed fall in a coverage ratio, in percentage points. */
   coverageDropPoints: 5,
   /** Anomalies allowed as a fraction of a source's lines. */
@@ -273,7 +275,8 @@ export function validate(catalog: Catalog, context: ValidationContext): Validati
     for (const [category, before] of [...beforeCounts].sort(([a], [b]) => (a < b ? -1 : 1))) {
       if (before < LIMITS.categoryMinimum) continue;
       const now = nowCounts.get(category) ?? 0;
-      soft(`category:${category}`, now, before, now >= before * (1 - LIMITS.countDrop), `${before} → ${now} listings`);
+      const allowedDrop = Math.max(before * LIMITS.countDrop, LIMITS.categoryDropFloor);
+      soft(`category:${category}`, now, before, now >= before - allowedDrop, `${before} → ${now} listings`);
     }
     const beforeCoverage = coverage(previous);
     const nowCoverage = coverage(catalog);
