@@ -1,3 +1,22 @@
 {
-  "accepted": []
+  "accepted": [
+    {
+      "gate": "category:awesome-shizuku/automation",
+      "value": 13,
+      "date": "2026-11-20",
+      "reason": "Upstream d2f9170a3 removed NexaFlow."
+    },
+    {
+      "gate": "category:awesome-shizuku/communication",
+      "value": 13,
+      "date": "2026-11-20",
+      "reason": "Upstream 2e136fad2 removed RivoPhoneApp and CallVault."
+    },
+    {
+      "gate": "category:awesome-shizuku/vendor-other",
+      "value": 9,
+      "date": "2026-11-20",
+      "reason": "Upstream 679820026 moved DiAuto under Open Headunit as a fork."
+    }
+  ]
 }
