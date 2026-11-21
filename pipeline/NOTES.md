@@ -581,7 +581,7 @@ Hard gates (cannot be accepted): schema shape including the strict package and
 slug patterns, invariants, enrichment failures, the round trip, icon records,
 header license texts. Comparison gates (acceptable for one exact value in
 `accepted-baseline.json`): anomalies per source, entries per source, listings
-per category of ten or more, coverage of summary / index / GitHub / icon among
+per category of ten or more (a fall past 5 % and past three listings), coverage of summary / index / GitHub / icon among
 installable apps, id churn. Measurements are rounded (counts exact, coverage to
 0.1 point, churn to 0.01 %) so a baseline entry can name them exactly; a
 further drop needs a new entry. Format:
