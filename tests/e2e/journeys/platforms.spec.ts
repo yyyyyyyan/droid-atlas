@@ -13,7 +13,7 @@
 
 import { expect, test } from "../lib/fixtures.ts";
 import { build, featuredApp, lensTest, requireShape } from "../lib/pick.ts";
-import { sample, sheetHash } from "../lib/catalog.ts";
+import { descriptionsOf, sample, sheetHash, type App } from "../lib/catalog.ts";
 import { ANDROID_CHROME_UA, DESKTOP_UA, launch, sheet } from "../lib/app.ts";
 
 const IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Mobile/15E148 Safari/604.1";
@@ -48,7 +48,8 @@ for (const platform of PLATFORMS) {
     test("twenty sheets in each of two lenses: every address off the app is the web's, and Obtainium is named only on Android, where the catalog does not name it", async ({ page }) => {
       test.skip(platform.android, "on Android the sheet keeps its intent link");
       for (const key of ["apk", "fdroid"]) {
-        const apps = sample(build.apps.filter((app) => lensTest(key)(app) && !JSON.stringify(app).includes("Obtainium")), 20, 11);
+        const namesObtainium = (app: App): boolean => JSON.stringify(app).includes("Obtainium") || descriptionsOf(build, app.id).some((text) => text.includes("Obtainium"));
+        const apps = sample(build.apps.filter((app) => lensTest(key)(app) && !namesObtainium(app)), 20, 11);
         requireShape(apps.length > 0, `apps in the ${key} lens`);
         for (const app of apps) {
           await launch(page, sheetHash(app));
