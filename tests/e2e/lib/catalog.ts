@@ -244,6 +244,22 @@ export function loadBuild(dataRoot: string = DATA_ROOT): Build {
   return cached;
 }
 
+const descriptionsByBuild = new WeakMap<Build, Map<string, string[]>>();
+
+/** The long descriptions the details parts hold for an app, from every origin: what a sheet's Read more can show, which `build.apps` does not carry. */
+export function descriptionsOf(build: Build, appId: string): string[] {
+  let byApp = descriptionsByBuild.get(build);
+  if (!byApp) {
+    byApp = new Map();
+    for (const file of build.manifest.files.filter((f) => f.role === "details")) {
+      const shard = readJson<Record<string, { description: string }>>(join(build.dir, file.path));
+      for (const [id, entry] of Object.entries(shard)) byApp.set(id, [...(byApp.get(id) ?? []), entry.description]);
+    }
+    descriptionsByBuild.set(build, byApp);
+  }
+  return byApp.get(appId) ?? [];
+}
+
 /** The facts the filter tokens stand for, as `docs/ARCHITECTURE.md` and the app's filter blurbs define them. */
 export const FILTER_TESTS: Record<string, (app: App) => boolean> = {
   shizuku: (a) => a.atlas.facets.shizuku,
