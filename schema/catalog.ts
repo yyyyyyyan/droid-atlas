@@ -18,6 +18,22 @@ export type SourceId = "android-foss" | "awesome-shizuku" | "droid-atlas";
 /** Where a fact or a piece of text came from. */
 export type Origin = SourceId | "fdroid" | "izzy" | "github";
 
+/**
+ * How a fact is known, beside who says so (`Origin`). The four levels never
+ * merge: a fact read from a package is not documented, and a documented
+ * interface is not verified. docs/ARCHITECTURE.md § Evidence levels maps each
+ * fact the catalog carries to its level.
+ */
+export type EvidenceLevel = (typeof EVIDENCE_LEVELS)[number];
+
+/**
+ * - `documented`: the app's own project says so.
+ * - `statically-discovered`: read from the app's package or source by a tool, without running it.
+ * - `reported`: someone other than the project says so.
+ * - `experimentally-verified`: the app was run and the result observed.
+ */
+export const EVIDENCE_LEVELS = ["documented", "statically-discovered", "reported", "experimentally-verified"] as const;
+
 export interface SourceInfo {
   id: SourceId;
   name: string;

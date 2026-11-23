@@ -168,6 +168,40 @@ patterns in the schema before anything is built from them, because they are
 later embedded in `intent:` URLs where `#`, `;` and `end` are syntax. Nothing
 upstream is executed or interpolated into markup, a shell command or a path.
 
+### Evidence levels
+
+Every fact has two marks: who says so (`Origin` in `schema/catalog.ts`) and
+how it is known (`EvidenceLevel`). The four levels stay apart everywhere:
+
+- **Documented**: the app's own project says so.
+- **Statically discovered**: a tool read it from the app's package or source,
+  without running the app.
+- **Reported**: someone other than the project says so.
+- **Experimentally verified**: the app was run and the result observed.
+
+The facts the catalog carries today map to them as follows. Their data does
+not yet carry the level; the mapping is by kind of fact.
+
+| Fact | Who says so | Level |
+|---|---|---|
+| An entry's name, link, description and tags (paid, root, closed source, archived), and the list's category | Android FOSS, awesome-shizuku | Reported |
+| Listed as a Shizuku app | awesome-shizuku | Reported |
+| Summary and description | F-Droid, IzzyOnDroid (the app's own text) | Documented |
+| Repository description | GitHub (the project's own text) | Documented |
+| License stated by an index or a list | F-Droid, IzzyOnDroid, a list | Reported |
+| License detected in the repository | GitHub | Statically discovered |
+| Anti-features | F-Droid, IzzyOnDroid | Reported |
+| Version, SDK levels, file size, permissions, requests Shizuku's permission, requests internet access | F-Droid, IzzyOnDroid (their tools read the package) | Statically discovered |
+| Author, and the dates the index added and updated the app | F-Droid, IzzyOnDroid | Reported |
+| Repository archived, latest release and whether it carries an APK | GitHub (the project's own act) | Documented |
+| Stars, last push, fork parent, new address | GitHub | Reported |
+| Download figures | F-Droid, IzzyOnDroid, GitHub | Reported |
+
+No fact in the catalog is experimentally verified. A facet that combines
+statements keeps the level of each: the Shizuku evidence of one app can hold
+a reported statement (a list names it) and a statically discovered one (an
+index read the permission from its package).
+
 ### Validation gates
 
 `validate.ts` fails the build, and therefore the deploy, when:
