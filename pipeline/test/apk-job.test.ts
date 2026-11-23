@@ -630,7 +630,8 @@ test("a temporary GitHub API error stops the GitHub lane for the run and records
   const answers: [string, () => Promise<Response>][] = [
     ["503", async () => new Response("busy", { status: 503 })],
     ["429", async () => new Response("slow down", { status: 429 })],
-    ["403", async () => new Response("rate limited", { status: 403 })],
+    ["403", async () => new Response("rate limited", { status: 403, headers: { "x-ratelimit-remaining": "0" } })],
+    ["403 retry", async () => new Response("secondary limit", { status: 403, headers: { "retry-after": "60" } })],
     ["network", async () => Promise.reject(new TypeError("fetch failed"))],
   ];
   for (const [name, answer] of answers) {
@@ -641,7 +642,7 @@ test("a temporary GitHub API error stops the GitHub lane for the run and records
     }) as typeof fetch;
     const store = emptyStore();
     const counts = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, store, options({ fetch: fake, clock: fakeClock() }));
-    assert.equal(lookups, 1, name);
+    assert.equal(lookups, 2, `${name}: the lane stops after a second failure in a row`);
     assert.equal(counts.skipped["api-unavailable"], 3, name);
     assert.equal(counts.failed["release-lookup"], 0, name);
     assert.deepEqual(store.failures, {}, name);
@@ -724,4 +725,28 @@ test("a release tag with slashes, as GitHub writes it in a download address, is 
   const second = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, store, options({ fetch: fake, clock: fakeClock() }));
   assert.equal(second.skipped["already-read"], 1);
   assert.equal(lookups, 1);
+});
+
+test("one repository failing for now does not stop the others, and a 403 that is not a rate limit is an ordinary failure", async () => {
+  const apps = ["a", "b", "c"].map((id) => app({ id, github: { slug: `o/${id}`, tag: "v1" } }));
+  const addresses = Object.fromEntries(["b", "c"].map((id) => [id, `https://github.com/o/${id}/releases/download/v1/app.apk`]));
+  const zips = Object.fromEntries(["b", "c"].map((id) => [id, packageZip(`org.example.${id}`)]));
+  const server = rangeServer(Object.fromEntries(["b", "c"].map((id) => [addresses[id] as string, zips[id] as Uint8Array])));
+  const oneDown = (async (input: string | URL | Request, init?: RequestInit) => {
+    const api = /^https:\/\/api\.github\.com\/repos\/o\/(\w)\/releases\/latest$/.exec(String(input));
+    if (!api) return server.fetch(input, init);
+    const id = api[1] as string;
+    if (id === "a") return new Response("busy", { status: 502 });
+    return new Response(JSON.stringify(release([{ name: "app.apk", size: (zips[id] as Uint8Array).length, url: addresses[id] as string, digest: `sha256:${sha(id === "b" ? 90 : 91)}` }])), { status: 200 });
+  }) as typeof fetch;
+  const store = emptyStore();
+  const counts = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, store, options({ fetch: oneDown, clock: fakeClock() }));
+  assert.equal(counts.read, 2);
+  assert.equal(counts.skipped["api-unavailable"], 1);
+  assert.deepEqual(store.failures, {});
+
+  const forbidden = (async () => new Response("blocked", { status: 403 })) as typeof fetch;
+  const blocked = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, emptyStore(), options({ fetch: forbidden, clock: fakeClock() }));
+  assert.equal(blocked.failed["release-lookup"], 3);
+  assert.equal(blocked.skipped["api-unavailable"], 0);
 });

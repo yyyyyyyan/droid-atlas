@@ -285,7 +285,8 @@ export async function latestReleaseAssets(slug: string, fetchFn: typeof fetch, t
   }
   if (response.status !== 200) {
     await response.body?.cancel().catch(() => {});
-    throw new LookupError(response.status === 403 || response.status === 429 || response.status >= 500);
+    const rateLimited = response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after");
+    throw new LookupError(response.status === 429 || response.status >= 500 || (response.status === 403 && rateLimited));
   }
   try {
     return parseAssets(await boundedText(response, MAX_RELEASE_JSON));
@@ -384,14 +385,15 @@ export async function runJob(input: JobInput, store: ReadingStore, options: JobO
     }
   };
 
-  let githubUnavailable = false;
+  /** Temporary lookup failures in a row: one may be a single repository's, two in a row stop GitHub for the run. */
+  let temporaryInARow = 0;
   const one = async (item: Work): Promise<void> => {
     if (item.lane !== "github") {
       const reading = await attempt(item.url, item.sha256, item.workKey);
       if (reading) record(reading, item.workKey, item.workKey);
       return;
     }
-    if (githubUnavailable) {
+    if (temporaryInARow >= 2) {
       skipped["api-unavailable"]++;
       return;
     }
@@ -400,12 +402,14 @@ export async function runJob(input: JobInput, store: ReadingStore, options: JobO
       assets = await latestReleaseAssets(item.slug, paced, options.githubToken);
     } catch (error) {
       if (error instanceof LookupError && error.temporary) {
-        githubUnavailable = true;
+        temporaryInARow++;
         skipped["api-unavailable"]++;
         return;
       }
+      temporaryInARow = 0;
       return fail(item.workKey, "release-lookup");
     }
+    temporaryInARow = 0;
     const chosen = chooseApk(assets);
     if (!chosen) {
       store.failures[item.workKey] = { at: at(), kind: "no-apk" };
