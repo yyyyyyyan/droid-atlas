@@ -135,3 +135,41 @@ test("a save made in another window of the same browser appears without a reload
   await expect(countStatus(page)).toHaveText(/^1 (apps?|entr(y|ies)|links?)$/);
   await other.close();
 });
+
+test("Saved marks an app released since it was last opened and an archived one; the release mark lasts the session and goes at the next", async ({ page }) => {
+  const released = build.apps.find((app) => build.github.apps[app.id]?.facts.release && app.atlas.facets.archived !== true && app.listings[0]?.kind === "app");
+  const archived = build.apps.find((app) => app.atlas.facets.archived === true && app.listings[0]?.kind === "app");
+  requireShape(released !== undefined, "an app with a GitHub release");
+  requireShape(archived !== undefined, "an archived app");
+  if (!released || !archived) return;
+  const builtAt = Date.parse(build.version.generatedAt);
+  await serveChanged(page, build, [{
+    role: "github",
+    change: (part) => {
+      const release = (part.apps as Record<string, { facts: { release: { publishedAt: string } | null } }>)[released.id]?.facts.release;
+      if (release) release.publishedAt = build.version.generatedAt;
+    },
+  }]);
+  const items = [released, archived].map((app, index) => ({ id: app.id, packages: app.atlas.packages, repo: app.atlas.repo?.url ?? null, savedAt: 1_700_000_000_000 + index }));
+  await seedStorage(page, {
+    [KEY]: JSON.stringify({ v: 1, items }),
+    "droid-atlas:v1:lastVisit": JSON.stringify({ v: 1, at: builtAt - 86_400_000 }),
+  });
+  const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(builtAt);
+  const row = (id: string) => resultList(page).locator(`[data-row="${id}"]`);
+
+  await launch(page, "#/saved");
+  await expect(row(released.id)).toContainText(`Released ${day}`);
+  await expect(row(archived.id)).toContainText("Archived");
+  await expect(row(released.id).getByRole("link")).toHaveAccessibleName(new RegExp(`Released ${day}`));
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("droid-atlas:v1:lastVisit") ?? "null") as unknown)).toEqual({ v: 1, at: builtAt });
+
+  await navLink(page, "Explore").click();
+  await navLink(page, "Saved").click();
+  await expect(row(released.id)).toContainText(`Released ${day}`);
+
+  await page.reload();
+  await ready(page);
+  await expect(row(archived.id)).toContainText("Archived");
+  await expect(row(released.id)).not.toContainText("Released");
+});
