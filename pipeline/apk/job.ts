@@ -31,7 +31,8 @@ export type SkipRule =
   | "failed-recently"
   | "no-apk-by-rule"
   | "over-cap"
-  | "time-limit";
+  | "time-limit"
+  | "api-unavailable";
 
 export const SKIP_RULES: readonly SkipRule[] = [
   "not-an-app",
@@ -44,6 +45,7 @@ export const SKIP_RULES: readonly SkipRule[] = [
   "no-apk-by-rule",
   "over-cap",
   "time-limit",
+  "api-unavailable",
 ];
 
 export const FAILURE_KINDS: readonly FailureKind[] = ["address", "http", "zip", "manifest", "unexpected", "release-lookup", "not-stored"];
@@ -243,29 +245,52 @@ async function boundedText(response: Response, max: number): Promise<string> {
     total += value.byteLength;
     if (total > max) {
       await reader.cancel();
-      throw new Error(`release JSON over ${max} bytes`);
+      throw new LookupError(false);
     }
     chunks.push(value);
   }
   return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
-/** The latest release's assets as GitHub's REST API lists them; throws when the answer is not as expected. */
+/** A release lookup that failed; `temporary` when trying again later may succeed (rate limits, server errors, the network). */
+export class LookupError extends Error {
+  readonly temporary: boolean;
+  constructor(temporary: boolean) {
+    super(temporary ? "release lookup failed for now" : "release lookup failed");
+    this.temporary = temporary;
+  }
+}
+
+/** The latest release's assets as GitHub's REST API lists them; throws a `LookupError` when the answer is not as expected. */
 export async function latestReleaseAssets(slug: string, fetchFn: typeof fetch, token: string | null): Promise<ReleaseAsset[]> {
   const headers: Record<string, string> = { accept: "application/vnd.github+json", "user-agent": "droid-atlas-pipeline" };
   if (token) headers["authorization"] = `bearer ${token}`;
-  const response = await fetchFn(`https://api.github.com/repos/${slug}/releases/latest`, {
-    headers,
-    redirect: "error",
-    signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
-  });
-  if (response.status !== 200) {
-    await response.body?.cancel();
-    throw new Error(`HTTP ${response.status}`);
+  let response: Response;
+  try {
+    response = await fetchFn(`https://api.github.com/repos/${slug}/releases/latest`, {
+      headers,
+      redirect: "error",
+      signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+    });
+  } catch {
+    throw new LookupError(true);
   }
-  const json: unknown = JSON.parse(await boundedText(response, MAX_RELEASE_JSON));
+  if (response.status !== 200) {
+    await response.body?.cancel().catch(() => {});
+    throw new LookupError(response.status === 403 || response.status === 429 || response.status >= 500);
+  }
+  try {
+    return parseAssets(await boundedText(response, MAX_RELEASE_JSON));
+  } catch (error) {
+    if (error instanceof LookupError) throw error;
+    throw new LookupError(!(error instanceof SyntaxError));
+  }
+}
+
+function parseAssets(text: string): ReleaseAsset[] {
+  const json: unknown = JSON.parse(text);
   const assets = typeof json === "object" && json !== null ? (json as Record<string, unknown>)["assets"] : null;
-  if (!Array.isArray(assets)) throw new Error("no asset list");
+  if (!Array.isArray(assets)) throw new LookupError(false);
   return assets.flatMap((raw): ReleaseAsset[] => {
     if (typeof raw !== "object" || raw === null) return [];
     const asset = raw as Record<string, unknown>;
@@ -351,16 +376,26 @@ export async function runJob(input: JobInput, store: ReadingStore, options: JobO
     }
   };
 
+  let githubUnavailable = false;
   const one = async (item: Work): Promise<void> => {
     if (item.lane !== "github") {
       const reading = await attempt(item.url, item.sha256, item.workKey);
       if (reading) record(reading, item.workKey, item.workKey);
       return;
     }
+    if (githubUnavailable) {
+      skipped["api-unavailable"]++;
+      return;
+    }
     let assets: ReleaseAsset[];
     try {
       assets = await latestReleaseAssets(item.slug, paced, options.githubToken);
-    } catch {
+    } catch (error) {
+      if (error instanceof LookupError && error.temporary) {
+        githubUnavailable = true;
+        skipped["api-unavailable"]++;
+        return;
+      }
       return fail(item.workKey, "release-lookup");
     }
     const chosen = chooseApk(assets);

@@ -625,3 +625,30 @@ test("a release with no APK the rule accepts is not looked up again for a week, 
   assert.deepEqual(looked, ["/repos/o/r/releases/latest", "/repos/o/s/releases/latest"]);
   assert.equal(Object.values(second.failed).reduce((a, b) => a + b, 0), 0, "not counted as a failure");
 });
+
+test("a temporary GitHub API error stops the GitHub lane for the run and records nothing", async () => {
+  const apps = ["a", "b", "c"].map((id) => app({ id, github: { slug: `o/${id}`, tag: "v1" } }));
+  const answers: [string, () => Promise<Response>][] = [
+    ["503", async () => new Response("busy", { status: 503 })],
+    ["429", async () => new Response("slow down", { status: 429 })],
+    ["403", async () => new Response("rate limited", { status: 403 })],
+    ["network", async () => Promise.reject(new TypeError("fetch failed"))],
+  ];
+  for (const [name, answer] of answers) {
+    let lookups = 0;
+    const fake = (async () => {
+      lookups++;
+      return answer();
+    }) as typeof fetch;
+    const store = emptyStore();
+    const counts = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, store, options({ fetch: fake, clock: fakeClock() }));
+    assert.equal(lookups, 1, name);
+    assert.equal(counts.skipped["api-unavailable"], 3, name);
+    assert.equal(counts.failed["release-lookup"], 0, name);
+    assert.deepEqual(store.failures, {}, name);
+  }
+  const gone = emptyStore();
+  const notFound = (async () => new Response("{}", { status: 404 })) as typeof fetch;
+  const counts = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, gone, options({ fetch: notFound, clock: fakeClock() }));
+  assert.equal(counts.failed["release-lookup"], 3, "a release that is not there is recorded");
+});
