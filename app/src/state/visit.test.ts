@@ -36,7 +36,7 @@ function session(storage: StorageBackend | null) {
   return createLastVisit(createVisitStore(storage));
 }
 
-describe("the date Saved was last opened", () => {
+describe("the date of the catalog Saved was last opened with", () => {
   test("the first visit has no date to measure from, and stores one", () => {
     const storage = new MemoryStorage();
     const visit = session(storage);
@@ -194,6 +194,16 @@ describe("release marks across visits", () => {
     expect(texts("2026-11-18T00:30:00Z", SAVED_LONG_AGO, since)).toEqual([]);
     expect(texts("2026-11-18T01:00:00Z", SAVED_LONG_AGO, since)).toEqual([]);
     expect(texts("2026-11-18T01:00:01Z", SAVED_LONG_AGO, since)).toEqual(["Released Nov 18"]);
+  });
+
+  test("a release published at 18:00 that an index dates only by its day is not marked when Saved was last opened on the catalog built at 14:00 that day", () => {
+    const storage = new MemoryStorage();
+    session(storage).open(catalogOf("2026-11-17T14:00:00Z"));
+    session(storage).open(catalogOf("2026-11-18T14:00:00Z"));
+    const next = session(storage);
+    next.open(catalogOf("2026-11-19T14:00:00Z"));
+    expect(next.since.value).toBe(at("2026-11-18T14:00:00Z"));
+    expect(texts("2026-11-18T00:00:00Z", SAVED_LONG_AGO, next.since.value)).toEqual([]);
   });
 
   test("a release an index dates only by its day is marked only when that whole day is later than the visit", () => {

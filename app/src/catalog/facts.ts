@@ -129,12 +129,15 @@ function releaseLabel(model: Model, at: number, from: Origin | null): string {
  * The marks a saved app carries on Saved, named on its row before any other
  * chip. "Archived" for as long as a source states the project is archived.
  * The day of its latest release when that release is later than both `since`,
- * the date Saved was last opened from, and `savedAt`; with no `since` (the
- * first visit, or a browser that keeps no data) there is no release mark.
+ * the build time of the catalog Saved was last opened with, and `savedAt`;
+ * with no `since` (the first visit, or a browser that keeps no data) there is
+ * no release mark.
  *
  * Releases are compared as the instants the catalog gives. An index that
  * states only the day gives that day's first moment, so such a release is
- * marked only when the whole day is later than `since`.
+ * marked only when the whole day is later than `since`. The catalog does not
+ * say which dates are day-only, so one published later on the day of the
+ * visit's catalog is never marked.
  */
 export function savedMarks(model: Model, entry: Entry, savedAt: number, since: number | null): Chip[] {
   const marks = termChips(entry).filter((chip) => chip.key === "archived");
