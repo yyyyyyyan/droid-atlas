@@ -523,6 +523,15 @@ are checked by hand on a phone: no automated test can prove them.
   value, and the app re-reads on the `storage` event. Saved apps are stored as
   `{ id, packages, repo, savedAt, removedAt? }`, which lets a save survive an
   id change and lets an import merge rather than overwrite.
+- `lastVisit` is the one date Saved keeps: the build time of the catalog on
+  screen when Saved was last opened. It is read once, at the first visit to
+  Saved in a session, and kept for the rest of it, so a mark does not vanish
+  the moment it is seen; the new date is stored at that visit and never moves
+  back. The catalog's time, not the clock's, because a release reaches the app
+  only with the next catalog, however late the visit. A saved app is marked
+  "Released <day>" when its latest release is later than both that date and
+  its own `savedAt`; with no date (the first visit, storage refused) nothing
+  is. It is not part of export and import.
 - Every read tolerates missing, corrupt or older-version data.
 - `navigator.storage.persist()` is requested after the first save; Settings
   shows whether storage is persistent and offers export. Export and import use

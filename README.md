@@ -74,7 +74,9 @@ names its source, and every app links to its own pages there.
 - **Get the app.** Buttons open the app's page on F-Droid or IzzyOnDroid, add
   it to Obtainium, or open its source code. Droid Atlas links to apps. It
   doesn't host, download or install them.
-- **Save apps for later.** Add notes, and export your list to a file.
+- **Save apps for later.** Add notes, and export your list to a file. Saved
+  shows which apps had a release since you last opened it, and which are
+  archived.
 - **Use it offline.** After your first visit, the catalog opens without a
   connection.
 
@@ -122,8 +124,9 @@ are archived.
 - Droid Atlas has no accounts, no analytics and no cookies.
 - The site makes no request to any other site until you select a link. Icons
   and fonts are served by the site itself.
-- Saved apps, notes and settings are stored in your browser, on your device.
-  They aren't sent anywhere. To move them to another device, export a file in
+- Saved apps, notes, settings and the date you last opened Saved are stored
+  in your browser, on your device. They aren't sent anywhere. To move your
+  saved apps, notes and settings to another device, export a file in
   **Settings** and import it there.
 - Droid Atlas runs no server of its own. As with any website, the company
   that hosts its files can see ordinary request data, such as your IP address.

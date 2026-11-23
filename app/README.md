@@ -137,6 +137,7 @@ src/
   state/
     storage.ts        createStore: versioned localStorage, cross-tab refresh, corrupt and newer-version data
     saved.ts          saved apps, notes, merge
+    visit.ts          the date Saved was last opened, which its release marks are measured from
     pins.ts  settings.ts
     transfer.ts       export and import: file format, reading, merging, summary
     persistence.ts    navigator.storage status;   install.ts  beforeinstallprompt
@@ -195,7 +196,10 @@ UI helpers worth knowing before changing a screen:
   that does not fit is left out; a caution never is, and takes room from the
   category's name down to `META_FLOOR`, is said shorter ("Anti-features 2"),
   or is counted ("+1", "2 cautions"). Nothing is cut at a row's edge from
-  320 px up. A list sorted by one source's downloads says above its rows
+  320 px up. Saved pins its marks (`savedMarks`) at the front of the badges,
+  on comfortable and compact rows alike: "Archived", and "Released Nov 18"
+  for a release later than both the last visit and the save. A pinned mark
+  is never left out or counted, and the other badges share the room left. A list sorted by one source's downloads says above its rows
   what period the figures cover, and nothing else (`sortNote`); a running
   total shows the day it is counted from beside the figure. Where a search
   matched is said on a row only when the row does not show the words: the
@@ -301,6 +305,7 @@ which keeps a manifest path inside the data root.
 | Scroll anchors, stack mirror | `sessionStorage` `droid-atlas:v1:scroll`, `:stack` | per tab |
 | Last place per display mode | `localStorage` `droid-atlas:v1:lastPlace:<mode>` | resumed on a launch with no hash, when Settings allows |
 | Saved apps (with notes), pins, settings | `localStorage` `droid-atlas:v1:saved`, `:pins`, `:settings` | through `createStore` |
+| When Saved was last opened | `localStorage` `droid-atlas:v1:lastVisit` | the build time of the catalog on screen, read and written once a session; not exported |
 | The stored catalog and shell | Cache Storage, names starting `droid-atlas:` | below |
 | Everything else | signals local to a component | |
 
@@ -669,12 +674,13 @@ followed by ", remove filter" with the long description as its title.
 | File | Covers |
 |---|---|
 | `router/router.test.ts` | history rules 1–8, cold start, resume and its setting, restoration incl. loads without `history.state`, header back, a sheet that holds Back with an entry of its own |
-| `catalog/catalog.test.ts` | model, redirects, filters, sorts, counts, each anti-feature as its own filter, whose statement an anti-feature filter rests on and how many apps it leaves out, row chips fitted beside the category name at each width, cautions said shorter or counted, the width of a name, how much of a summary a row shows, the note above a download sort, the measure a sorted row shows, statistics, sheet facts, search ranking, marked matches and where a search matched, descriptions as paragraphs and lists, marks for same-named categories |
+| `catalog/catalog.test.ts` | model, redirects, filters, sorts, counts, each anti-feature as its own filter, whose statement an anti-feature filter rests on and how many apps it leaves out, row chips fitted beside the category name at each width, cautions said shorter or counted, the width of a name, how much of a summary a row shows, the note above a download sort, the measure a sorted row shows, statistics, sheet facts, search ranking, marked matches and where a search matched, descriptions as paragraphs and lists, marks for same-named categories, Saved's archived and release marks pinned first on comfortable and compact rows |
 | `catalog/statements.test.ts` | what the sheet says where something is missing, over the shapes of entry the catalog holds: "Unknown" rows exactly for an app no index carries, nothing called "none", every stated line naming who states it, the source the Details heading names |
 | `catalog/load.test.ts` | loading from parts, tampered and missing files, wrong shapes, newer schema, on-demand files, part headers, icon credits |
 | `catalog/about.test.ts` | part headers, links to build files, license ids, source credits incl. hostile input, catalog health, icon credit search, About routes |
 | `links.test.ts` | every link form as it was tapped on the device, on Android and elsewhere; that only the Obtainium link navigates the window; no package name or fork in any link; hostile package ids and slugs; guides and sites; framed pages |
-| `state/state.test.ts` | stores, corrupt and newer-version storage, saved-app resolution across id changes |
+| `state/state.test.ts` | stores, corrupt and newer-version storage, saved-app resolution across id changes, when each entry was saved |
+| `state/visit.test.ts` | the date Saved was last opened: the first visit, the same session, the next session, another window, a date that never moves back, blocked and damaged storage; which releases are marked: after a save, on the day of the visit, an index that states only the day |
 | `state/transfer.test.ts` | notes, merging saved apps, pins and settings, the export file, reading damaged and foreign files, a migration chain, importing, two windows |
 | `offline/offline.test.ts` | every decision function; download, verify, store, make current; each way a download can be wrong; newer schema; the install requirement; pointers; a launch reading its stored build without the worker |
 | `ui/layout.test.ts` | the list window at rest and in motion, the room it keeps ahead of a scroll, scroll speed, the quick window, region map layout, the wide map's rows (this catalog's counts, the one before, one region far smaller, two equal small ones, thirteen equal: no sliver, names on whole words, categories listed, areas at their share), result stepping, row memo |
