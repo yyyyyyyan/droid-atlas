@@ -143,7 +143,7 @@ Variables) unless marked secret.
 | `CLOUDFLARE_API_TOKEN` | **secret** | Required with `cloudflare-workers`; the only credential anything reads. The build job never sees it |
 | `PACKAGE_READINGS_ENABLED` | `true` / unset | The package readings workflow runs on its daily schedule. A run started by hand runs whatever this says. Needs `SITE_URL` |
 | `PACKAGE_READINGS_CLOSED` | `true` / unset | Package readings also cover apps whose openness facet is not "open-source". Off unless `true` |
-| `PACKAGE_READINGS_IZZY` | `true` / unset | Package readings try IzzyOnDroid packages. Off unless `true`; the reader has no IzzyOnDroid host rule, so such packages are refused while it has none |
+| `PACKAGE_READINGS_IZZY` | `true` / unset | On its own it reads nothing: the reader has no host rule for IzzyOnDroid, so IzzyOnDroid packages stay skipped (rule `izzy-no-host`) whatever this says |
 
 Repository settings that matter: for GitHub Pages, Pages → Source = "GitHub
 Actions". Optionally, protect the `github-pages` or `cloudflare-workers`

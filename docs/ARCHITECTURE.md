@@ -262,38 +262,52 @@ hash of the manifest bytes that were read.
 #### The package readings job
 
 `.github/workflows/package-readings.yml` runs `pipeline/scripts/package-readings.ts`
-(`pipeline/apk/job.ts`). It is not part of the daily refresh and the catalog
-build reads nothing it writes, so it can neither fail nor delay a catalog.
+(`pipeline/apk/cli.ts`, `pipeline/apk/job.ts`). It is not part of the daily
+refresh and the catalog build reads nothing it writes, so it can neither fail
+nor delay a catalog.
 
 - **What it reads.** For each app of the live catalog: the latest version the
   F-Droid index lists, from the upstream cache the refresh keeps; else the APK
-  of the latest GitHub release that this rule picks: of the `.apk` assets,
-  leave out any whose name contains "debug", take those whose name names no
-  processor architecture and of them the largest, ties broken by name; when
-  every APK names one, the arm64 ones the same way. A file read before, by
-  its SHA-256 or, when GitHub states none, its address, size and change time,
-  is not read again.
+  of the latest GitHub release (as GitHub's REST API names it) that this rule
+  picks: of the `.apk` assets, leave out any whose name contains "debug",
+  take those whose name names no processor architecture and of them the
+  largest, ties broken by name; when every APK names one, the arm64 ones the
+  same way. A release tag may contain "/", which GitHub writes into the
+  download address as it is. A file read before, by its SHA-256 or, when
+  GitHub states none, its address, size and change time, is not read again.
+  An asset whose size as served differs from the size GitHub states is not
+  read.
 - **What it skips.** Guides and other entries that are not apps; apps whose
   openness facet is not "open-source" (closed source, source available, or
   stated by no source); apps whose only package is on IzzyOnDroid; apps with
-  no package file to read; packages that failed in the last 7 days. The
-  openness rule and the IzzyOnDroid rule each have a switch, off unless set:
-  `PACKAGE_READINGS_CLOSED` and `PACKAGE_READINGS_IZZY` (`RELEASE.md` §3).
-  The reader itself has no IzzyOnDroid host rule, so IzzyOnDroid packages
-  stay unread even with that switch on.
+  no package file to read; a release with no APK the rule accepts, for 7 days
+  after it was looked up; packages that failed in the last 7 days. The
+  openness rule has a switch, `PACKAGE_READINGS_CLOSED`, off unless set
+  (`RELEASE.md` §3). `PACKAGE_READINGS_IZZY` alone reads nothing: the reader
+  has no host rule for IzzyOnDroid, so with it on an IzzyOnDroid package is
+  still skipped, under its own rule name.
 - **Pace.** At most 200 packages a scheduled run (20 by default when run by
   hand), one request at a time to each host and one second at least between
   the starts of two requests to the same host. No package is started after 40
-  minutes; the job stops at 60.
+  minutes; the job stops at 60. When GitHub's API answers two lookups in a row
+  with a rate limit, a server error or no answer, no more GitHub releases are
+  looked up in that run and nothing is recorded for them.
+- **Size.** A manifest with more than 256 entries in one interface list, or
+  more than 256 content types, schemes or hosts in one entry, is refused, and
+  so is a reading over 256 KB as JSON.
 - **Where results are kept.** One file, `readings.json`, in the Actions cache
-  (key `package-readings-<run>`), restored at the start of a run and saved at
-  its end only when the whole file passes its check. A missing or unreadable
-  file starts the store empty; an entry that fails the check is dropped and
-  the rest are kept. An app keeps its last reading until a newer file of it
-  is read, and loses it when it is no longer an app the job reads.
+  (key `package-readings-<run>-<attempt>`), restored at the start of a run
+  and saved at its end only when the whole file passes its check. It is
+  written through a temporary file outside the cached directory. A missing or
+  unreadable file starts the store empty; an entry that fails the check, or a
+  failure record dated in the future, is dropped and the rest are kept. A
+  reading that would fail the check is not kept and is counted as
+  "not-stored". An app keeps its last reading until a newer file of it is
+  read, and loses it when it is no longer an app the job reads.
 - **What it reports.** The run's summary states counts only: read, skipped
   (one count per rule), failed (one count per kind), carried over and
-  dropped. It opens no issue.
+  dropped. A run that stops prints the stage it stopped at and the class of
+  the error, nothing taken from its input. It opens no issue.
 - **What it publishes.** Nothing. The readings are not on the site, in an
   artifact or in a log, and nothing in the app shows them.
 

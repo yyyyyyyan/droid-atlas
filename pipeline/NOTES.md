@@ -89,6 +89,7 @@ apk/choose.ts                 which APK of a GitHub release is read
 apk/pace.ts                   one second between the starts of two requests to a host
 apk/store.ts                  readings kept between runs: load, check entry by entry, save only when whole
 apk/job.ts                    the package readings job: plan by rule, cap, lanes per host, prune, counts
+apk/cli.ts                    the job as a command: arguments, stages, fixed messages on failure
 scripts/read-package.ts       one reading printed, for checking by hand
 scripts/package-readings.ts   the job as the package-readings workflow runs it
 ```
