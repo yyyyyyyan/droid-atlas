@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { App, Catalog, Openness } from "../../schema/catalog.ts";
 import type { PackageReading } from "../../schema/package-reading.ts";
 import { chooseApk, type ReleaseAsset } from "../apk/choose.ts";
+import { main, type CliDeps } from "../apk/cli.ts";
 import { FAILURE_KINDS, JOB_DEFAULTS, plan, runJob, SKIP_RULES, summary, type JobCounts, type JobOptions } from "../apk/job.ts";
 import { Pacer, type Clock } from "../apk/pace.ts";
 import { checkStore, emptyStore, loadStore, saveStore, type ReadingStore } from "../apk/store.ts";
@@ -541,4 +542,65 @@ test("a failure dated in the future is dropped when the store is loaded", () => 
   const loaded = loadStore(path, Date.parse("2026-11-23T08:00:00Z"));
   assert.deepEqual(Object.keys(loaded.store.failures), ["github:o/r@v1"]);
   assert.equal(loaded.dropped, 1);
+});
+
+/** A clock that answers `calls` times, then throws an error carrying `message`. */
+function failingAfter(calls: number, message: string): Clock {
+  let left = calls;
+  return {
+    now: () => {
+      if (left-- <= 0) throw new Error(message);
+      return Date.parse("2026-11-23T08:00:00Z");
+    },
+    sleep: async () => {},
+  };
+}
+
+test("the command prints nothing derived from its input when a stage fails", async () => {
+  const mark = "SECRET-MARK";
+  const dir = mkdtempSync(join(tmpdir(), "cli-"));
+  const cache = join(dir, "cache");
+  mkdirSync(cache);
+  writeFileSync(join(cache, "fdroid-index-v2.json"), `{"${mark}`);
+  const plainCache = join(dir, "plain-cache");
+  mkdirSync(plainCache);
+  const aFile = join(dir, "a-file");
+  writeFileSync(aFile, "x");
+  const storeIsDirectory = join(dir, mark, "readings.json");
+  mkdirSync(storeIsDirectory, { recursive: true });
+  const good = ["--catalog", `catalog-${mark}`, "--store", join(dir, "store", "readings.json"), "--cache", plainCache];
+  const deps = (overrides: Partial<CliDeps> = {}): CliDeps & { lines: string[] } => {
+    const lines: string[] = [];
+    return {
+      lines,
+      loadCatalog: async () => catalog([]),
+      fetch: (async () => new Response(mark, { status: 500 })) as typeof fetch,
+      clock: fakeClock(),
+      env: {},
+      out: (line) => lines.push(line),
+      err: (line) => lines.push(line),
+      ...overrides,
+    };
+  };
+  const cases: [string, string[], Partial<CliDeps>][] = [
+    ["arguments", [...good, "--cap", mark], {}],
+    ["catalog", good, { loadCatalog: async () => Promise.reject(new Error(`package id ${mark} does not match`)) }],
+    ["index", [...good, "--cache", cache], {}],
+    ["store", ["--catalog", "c", "--store", join(aFile, mark, "readings.json"), "--cache", plainCache], {}],
+    ["job", good, { clock: failingAfter(1, mark) }],
+    ["save", ["--catalog", "c", "--store", storeIsDirectory, "--cache", plainCache], {}],
+    ["summary", [...good, "--summary", join(dir, "missing", mark, "summary.md")], {}],
+    ["check", ["--check", join(dir, mark, "readings.json")], {}],
+  ];
+  for (const [stage, argv, overrides] of cases) {
+    const io = deps(overrides);
+    const code = await main(argv, io);
+    const text = io.lines.join("\n");
+    assert.equal(code, 1, stage);
+    assert.ok(!text.includes(mark), `${stage}: ${text}`);
+    assert.match(text, new RegExp(`stopped at ${stage}`), stage);
+  }
+  const ok = deps();
+  assert.equal(await main(good, ok), 0);
+  assert.ok(!ok.lines.join("\n").includes(mark));
 });
