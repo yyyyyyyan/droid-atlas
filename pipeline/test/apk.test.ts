@@ -519,12 +519,14 @@ function ranged(bytes: Uint8Array, range: string, total = bytes.length, headers:
 
 test("redirects lead only to an allowed host of the same rule, over https, without user info or port", async () => {
   const bytes = sampleZip();
-  for (const [from, to] of [
+  const asset = "https://release-assets.githubusercontent.com/x/tiles-1.0.apk";
+  const cases: [string, string][] = [
     [GITHUB, "http://release-assets.githubusercontent.com/x/tiles-1.0.apk"],
-    [GITHUB, "https://someone@release-assets.githubusercontent.com/x/tiles-1.0.apk"],
+    [GITHUB, Object.assign(new URL(asset), { username: "someone" }).href],
     [GITHUB, "https://release-assets.githubusercontent.com:8443/x/tiles-1.0.apk"],
-    [FDROID, "https://release-assets.githubusercontent.com/x/tiles-1.0.apk"],
-  ] as const) {
+    [FDROID, asset],
+  ];
+  for (const [from, to] of cases) {
     const server = rangeServer({ [to]: bytes }, { redirects: { [from]: to } });
     await assert.rejects(openPackage(from, { fetch: server.fetch }), /redirect to a host that is not allowed/, to);
     assert.equal(server.requests.length, 1, `${to} was not requested`);
