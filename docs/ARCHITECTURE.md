@@ -49,7 +49,7 @@ placements.json              apps placed by hand, each with a reason
 icons.ts                     find, fetch and credit icons; 192 and 384 px WebP (LICENSING.md §1.3)
 validate.ts                  schema, invariants, comparison with the previous good catalog
 emit.ts                      content-addressed data directory and version.json
-apk/                         package readings by byte range, outside the build (§ Package readings)
+apk/                         package readings by byte range, and their job, outside the build (§ Package readings)
 ```
 
 ### Identity
@@ -216,37 +216,86 @@ hash of the manifest bytes that were read.
 - **What it reads.** Quick Settings tiles, Tasker (Locale) plug-in
   components, share targets and the content types they name, link schemes and
   hosts, the app's own actions other apps may call, and Shizuku's permission
-  and provider. Each comes with its component's `exported` flag and guarding
-  permission exactly as written. Nothing is inferred from defaults, and
-  nothing counts or lists components by whether a permission guards them.
+  and provider (every provider name and permission element the Shizuku API
+  has used). Each comes with its component's `exported`, `enabled` and
+  guarding permission exactly as written. Nothing is inferred from defaults,
+  and nothing counts or lists components by whether a permission guards them.
+- **As Android reads it.** Elements count only where Android looks for them,
+  and framework attributes are found by resource id alone: an attribute the
+  file's resource map does not cover is invisible to Android and is not read.
 - **What it does not read.** The resource table, so no labels. A value that
   is a resource reference is recorded as not read, with the reference.
   Receivers registered at run time, dynamic shortcuts and the extras an
   action needs are not in a manifest at all. A declaration says an interface
   exists in that version; it says nothing about whether it works.
 - **By byte range.** The first request asks for four bytes, which gives the
-  file's size and shows it starts like a zip. Then the end of the file (the
-  zip's end record, and usually its central directory), then the manifest
-  entry. Every range is explicit, since GitHub's file host refuses a request
-  for "the last N bytes". A reading takes three to four requests and about
-  70 to 170 kB.
+  file's size and shows it starts like a zip. Then the last 4 KiB, which hold
+  the zip's end record unless the file carries a long comment (then up to the
+  last 64 KiB). Then the central directory, which must end where the end
+  record starts and is read at its stated size, and last the manifest entry,
+  found by the bytes of its name. Every range is explicit, since GitHub's
+  file host refuses a request for "the last N bytes". Measured on six
+  packages: three to five requests and 65 to 101 kB a reading, most of it the
+  central directory.
 - **Hosts.** Only F-Droid's repository and archive addresses
   (`https://f-droid.org/repo/…`, `…/archive/…`) and GitHub release download
-  addresses are accepted. Redirects are followed by hand, and only to GitHub's
-  release file hosts.
+  addresses are accepted, in the exact form the URL parser gives them.
+  Redirects are followed by hand: an F-Droid address may lead only to
+  `f-droid.org`, a GitHub address only to GitHub's release file hosts. Requests carry the pipeline's user agent,
+  `droid-atlas-pipeline`.
 - **Untrusted bytes.** Every size, count and offset is bounded and checked:
-  requests, bytes received and file size per reading, per-request and
+  requests, bytes received and file size per reading (a range longer than
+  what is left of the byte budget is not requested), per-request and
   whole-reading time limits, central directory size and entry count,
-  compressed and inflated manifest size, string count and length, element
-  count, attributes per element and nesting depth. Zip64, split archives,
-  encryption, compression other than deflate, a duplicated manifest entry and
-  a manifest failing its CRC-32 are refused. Kept values must match the
+  compressed and inflated manifest size, string count and length, characters
+  decoded over the whole manifest, element count, attributes per element and
+  nesting depth. Zip64, split archives, encryption, compression other than
+  deflate, a duplicated manifest entry, a local header naming another entry
+  and a manifest failing its CRC-32 are refused. Kept values must match the
   pattern of their kind (package id, class name, scheme, host, content type,
-  or printable ASCII for actions and permissions); anything else is recorded
-  as not read.
+  version name, or printable ASCII for actions and permissions); anything else
+  is recorded as not read. Every failure is a `PackageReadError` naming its
+  stage, and messages carry no raw server text.
 - **By hand.** `node pipeline/scripts/read-package.ts <address> [--sha256
-  <hex>]` prints one reading. Package readings are not part of the build and
-  nothing on the site shows them.
+  <hex>]` prints one reading.
+
+#### The package readings job
+
+`.github/workflows/package-readings.yml` runs `pipeline/scripts/package-readings.ts`
+(`pipeline/apk/job.ts`). It is not part of the daily refresh and the catalog
+build reads nothing it writes, so it can neither fail nor delay a catalog.
+
+- **What it reads.** For each app of the live catalog: the latest version the
+  F-Droid index lists, from the upstream cache the refresh keeps; else the APK
+  of the latest GitHub release that this rule picks: of the `.apk` assets,
+  leave out any whose name contains "debug", take those whose name names no
+  processor architecture and of them the largest, ties broken by name; when
+  every APK names one, the arm64 ones the same way. A file read before, by
+  its SHA-256 or, when GitHub states none, its address, size and change time,
+  is not read again.
+- **What it skips.** Guides and other entries that are not apps; apps whose
+  openness facet is not "open-source" (closed source, source available, or
+  stated by no source); apps whose only package is on IzzyOnDroid; apps with
+  no package file to read; packages that failed in the last 7 days. The
+  openness rule and the IzzyOnDroid rule each have a switch, off unless set:
+  `PACKAGE_READINGS_CLOSED` and `PACKAGE_READINGS_IZZY` (`RELEASE.md` §3).
+  The reader itself has no IzzyOnDroid host rule, so IzzyOnDroid packages
+  stay unread even with that switch on.
+- **Pace.** At most 200 packages a scheduled run (20 by default when run by
+  hand), one request at a time to each host and one second at least between
+  the starts of two requests to the same host. No package is started after 40
+  minutes; the job stops at 60.
+- **Where results are kept.** One file, `readings.json`, in the Actions cache
+  (key `package-readings-<run>`), restored at the start of a run and saved at
+  its end only when the whole file passes its check. A missing or unreadable
+  file starts the store empty; an entry that fails the check is dropped and
+  the rest are kept. An app keeps its last reading until a newer file of it
+  is read, and loses it when it is no longer an app the job reads.
+- **What it reports.** The run's summary states counts only: read, skipped
+  (one count per rule), failed (one count per kind), carried over and
+  dropped. It opens no issue.
+- **What it publishes.** Nothing. The readings are not on the site, in an
+  artifact or in a log, and nothing in the app shows them.
 
 ### Validation gates
 

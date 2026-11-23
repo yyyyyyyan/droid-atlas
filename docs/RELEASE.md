@@ -141,6 +141,9 @@ Variables) unless marked secret.
 | `CLOUDFLARE_ACCOUNT_ID` | **secret** | Required with `cloudflare-workers`: the account the Worker lives in. Cloudflare doesn't treat the id as a credential; it is a secret here so that the workflow's public logs mask it |
 | `CLOUDFLARE_WORKER_NAME` | lowercase letters, digits, inner dashes; at most 55 | Required with `cloudflare-workers`: the Worker's name, which the first deploy creates. With this target `SITE_URL` must have no path (`https://<domain>/`): its host becomes the Worker's custom domain |
 | `CLOUDFLARE_API_TOKEN` | **secret** | Required with `cloudflare-workers`; the only credential anything reads. The build job never sees it |
+| `PACKAGE_READINGS_ENABLED` | `true` / unset | The package readings workflow runs on its daily schedule. A run started by hand runs whatever this says. Needs `SITE_URL` |
+| `PACKAGE_READINGS_CLOSED` | `true` / unset | Package readings also cover apps whose openness facet is not "open-source". Off unless `true` |
+| `PACKAGE_READINGS_IZZY` | `true` / unset | Package readings try IzzyOnDroid packages. Off unless `true`; the reader has no IzzyOnDroid host rule, so such packages are refused while it has none |
 
 Repository settings that matter: for GitHub Pages, Pages → Source = "GitHub
 Actions". Optionally, protect the `github-pages` or `cloudflare-workers`

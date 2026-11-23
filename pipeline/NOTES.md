@@ -19,6 +19,7 @@ From the repository root, after `pnpm install`:
 | `pnpm --filter @droid-atlas/pipeline test` | Unit tests, and a real offline build when `.cache/` is filled |
 | `pnpm --filter @droid-atlas/pipeline typecheck` | `tsc --noEmit`, strict |
 | `node pipeline/scripts/read-package.ts <address> [--sha256 <hex>]` | Read one package's manifest by byte range and print the reading; not part of the build |
+| `node pipeline/scripts/package-readings.ts --catalog <dir, version.json or URL> --store <file> [--cap <n>]` | The package readings job (ARCHITECTURE § Package readings); `--check <file>` checks a store |
 
 Other options: `--out <dir>` (default `app/public/data`), `--cache <dir>`
 (default `.cache`), `--generated-at <iso>` (fixes the only clock-dependent
@@ -84,7 +85,12 @@ apk/zip.ts                    zip end record, central directory and one entry, b
 apk/axml.ts                   Android binary XML → element tree, bounded
 apk/manifest.ts               element tree → declared interfaces (tiles, Tasker, share, links, actions, Shizuku)
 apk/read.ts                   one package address → PackageReading (schema/package-reading.ts)
+apk/choose.ts                 which APK of a GitHub release is read
+apk/pace.ts                   one second between the starts of two requests to a host
+apk/store.ts                  readings kept between runs: load, check entry by entry, save only when whole
+apk/job.ts                    the package readings job: plan by rule, cap, lanes per host, prune, counts
 scripts/read-package.ts       one reading printed, for checking by hand
+scripts/package-readings.ts   the job as the package-readings workflow runs it
 ```
 
 Data flow: each parser produces `SourceEntry` records; `identity.ts` groups
@@ -610,11 +616,14 @@ backoff (4 tries, 2 s doubling) before failing the build; icon lookups and
 download publications never fail it. Online builds re-query GitHub for every
 repository so stars, activity and release downloads stay current.
 
-Package readings (`apk/`) are not part of the build. `scripts/read-package.ts`
-requests `f-droid.org/repo/` (or `/archive/`) and GitHub release download
-addresses, and follows redirects to `objects.githubusercontent.com` and
+Package readings (`apk/`) are not part of the build. A reading requests
+`f-droid.org/repo/` (or `/archive/`) and GitHub release download addresses,
+and follows redirects to `objects.githubusercontent.com` and
 `release-assets.githubusercontent.com` only: one request at a time, at most
-10 a reading, every one a ranged `GET` with an explicit range.
+10 a reading, every one a ranged `GET` with an explicit range. The job adds
+the live site's catalog, read as `--previous` reads it, and the GitHub REST
+API's latest release of a repository (`/repos/<owner>/<name>/releases/latest`)
+for apps read from a GitHub release, paced like the rest.
 
 ### Repository hygiene
 
