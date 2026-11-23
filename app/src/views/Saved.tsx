@@ -1,7 +1,8 @@
 /**
  * Saved: the apps kept on this device, most recently saved first, with the
  * same list tools as everywhere else. A row names an app that is archived,
- * and the day of a release made since Saved was last opened (`savedMarks`).
+ * and the day of a release that the catalogs since Saved was last opened
+ * brought (`savedMarks`).
  */
 
 import { useMemo } from "preact/hooks";

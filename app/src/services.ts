@@ -26,7 +26,7 @@ export interface Services {
   router: Router;
   navigation: ReadonlySignal<Navigation>;
   saved: Saved;
-  /** The date Saved was last opened, which its release marks are measured from. */
+  /** The date of the catalog Saved was last opened with, which its release marks are measured from. */
   visit: LastVisit;
   pins: Store<PinsData>;
   settings: Store<Settings>;

@@ -137,7 +137,7 @@ src/
   state/
     storage.ts        createStore: versioned localStorage, cross-tab refresh, corrupt and newer-version data
     saved.ts          saved apps, notes, merge
-    visit.ts          the date Saved was last opened, which its release marks are measured from
+    visit.ts          the date of the catalog Saved was last opened with, which its release marks are measured from
     pins.ts  settings.ts
     transfer.ts       export and import: file format, reading, merging, summary
     persistence.ts    navigator.storage status;   install.ts  beforeinstallprompt
@@ -305,7 +305,7 @@ which keeps a manifest path inside the data root.
 | Scroll anchors, stack mirror | `sessionStorage` `droid-atlas:v1:scroll`, `:stack` | per tab |
 | Last place per display mode | `localStorage` `droid-atlas:v1:lastPlace:<mode>` | resumed on a launch with no hash, when Settings allows |
 | Saved apps (with notes), pins, settings | `localStorage` `droid-atlas:v1:saved`, `:pins`, `:settings` | through `createStore` |
-| When Saved was last opened | `localStorage` `droid-atlas:v1:lastVisit` | the build time of the catalog on screen, read and written once a session; not exported |
+| The date of the catalog Saved was last opened with | `localStorage` `droid-atlas:v1:lastVisit` | the catalog's build time, read and written once a session; not exported |
 | The stored catalog and shell | Cache Storage, names starting `droid-atlas:` | below |
 | Everything else | signals local to a component | |
 
@@ -680,7 +680,7 @@ followed by ", remove filter" with the long description as its title.
 | `catalog/about.test.ts` | part headers, links to build files, license ids, source credits incl. hostile input, catalog health, icon credit search, About routes |
 | `links.test.ts` | every link form as it was tapped on the device, on Android and elsewhere; that only the Obtainium link navigates the window; no package name or fork in any link; hostile package ids and slugs; guides and sites; framed pages |
 | `state/state.test.ts` | stores, corrupt and newer-version storage, saved-app resolution across id changes, when each entry was saved |
-| `state/visit.test.ts` | the date Saved was last opened: the first visit, the same session, the next session, another window, a date that never moves back, blocked and damaged storage; which releases are marked: after a save, on the day of the visit, an index that states only the day |
+| `state/visit.test.ts` | the date of the catalog Saved was last opened with: the first visit, the same session, the next session, another window, a date that never moves back, blocked and damaged storage; which releases are marked: after a save, on the day of the visit, an index that states only the day |
 | `state/transfer.test.ts` | notes, merging saved apps, pins and settings, the export file, reading damaged and foreign files, a migration chain, importing, two windows |
 | `offline/offline.test.ts` | every decision function; download, verify, store, make current; each way a download can be wrong; newer schema; the install requirement; pointers; a launch reading its stored build without the worker |
 | `ui/layout.test.ts` | the list window at rest and in motion, the room it keeps ahead of a scroll, scroll speed, the quick window, region map layout, the wide map's rows (this catalog's counts, the one before, one region far smaller, two equal small ones, thirteen equal: no sliver, names on whole words, categories listed, areas at their share), result stepping, row memo |

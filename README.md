@@ -124,8 +124,9 @@ are archived.
 - Droid Atlas has no accounts, no analytics and no cookies.
 - The site makes no request to any other site until you select a link. Icons
   and fonts are served by the site itself.
-- Saved apps, notes, settings and the date you last opened Saved are stored
-  in your browser, on your device. They aren't sent anywhere. To move your
+- Saved apps, notes, settings and one date, the date of the catalog you last
+  opened Saved with, are stored in your browser, on your device. They aren't
+  sent anywhere. To move your
   saved apps, notes and settings to another device, export a file in
   **Settings** and import it there.
 - Droid Atlas runs no server of its own. As with any website, the company
