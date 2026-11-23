@@ -194,6 +194,24 @@ test("values are read as Android reads them: enabled, versionName with spaces, v
   assert.deepEqual(tooLong.version.name, { unread: "unexpected-value" });
 });
 
+test("Shizuku is recognized by every provider name and permission element its API has used", () => {
+  for (const [provider, element] of [
+    ["rikka.shizuku.ShizukuProvider", "uses-permission"],
+    ["moe.shizuku.api.ShizukuProvider", "uses-permission"],
+    ["moe.shizuku.api.BinderReceiveProvider", "uses-permission-sdk-23"],
+  ] as const) {
+    const manifest = el("manifest", { "@package": PKG }, [
+      el(element, { name: "moe.shizuku.manager.permission.API_V23" }),
+      el("application", {}, [el("provider", { name: provider, exported: true })]),
+    ]);
+    assert.deepEqual(readManifest(parseAxml(encodeAxml(manifest))).interfaces.shizuku, { permission: true, provider: true }, provider);
+  }
+  const elsewhere = el("manifest", { "@package": PKG }, [
+    el("application", {}, [el("uses-permission", { name: "moe.shizuku.manager.permission.API_V23" }), el("provider", { name: "org.example.ShizukuProvider" })]),
+  ]);
+  assert.deepEqual(readManifest(parseAxml(encodeAxml(elsewhere))).interfaces.shizuku, { permission: false, provider: false });
+});
+
 test("values with unexpected text or types are not kept", () => {
   const manifest = el("manifest", { "@package": PKG }, [
     el("application", {}, [

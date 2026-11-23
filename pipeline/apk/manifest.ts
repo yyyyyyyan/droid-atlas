@@ -60,7 +60,10 @@ const TASKER: ReadonlyMap<string, TaskerRole> = new Map([
 /** Namespaces whose actions belong to the platform or a library, not to the app. */
 const PLATFORM_PREFIXES = ["android.", "com.android.", "androidx.", "com.google.", "com.twofortyfouram.", "net.dinglisch.android.tasker."];
 const SHIZUKU_PERMISSION = "moe.shizuku.manager.permission.API_V23";
-const SHIZUKU_PROVIDER = "rikka.shizuku.ShizukuProvider";
+/** Every provider class the Shizuku API has told apps to declare: the current one, then the two before v11. */
+const SHIZUKU_PROVIDERS = new Set(["rikka.shizuku.ShizukuProvider", "moe.shizuku.api.ShizukuProvider", "moe.shizuku.api.BinderReceiveProvider"]);
+/** The Shizuku API has declared its permission with both elements. */
+const PERMISSION_TAGS = ["uses-permission", "uses-permission-sdk-23"];
 
 const COMPONENT_TAGS: readonly ComponentType[] = ["activity", "activity-alias", "service", "receiver"];
 
@@ -183,13 +186,16 @@ export function readManifest(root: AxmlElement): ManifestFacts {
     links: [],
     actions: [],
     shizuku: {
-      permission: children(root, "uses-permission").some((p) => text(p, ATTR.name) === SHIZUKU_PERMISSION),
+      permission: PERMISSION_TAGS.some((tag) => children(root, tag).some((p) => text(p, ATTR.name) === SHIZUKU_PERMISSION)),
       provider: false,
     },
   };
 
   const application = children(root, "application")[0];
-  interfaces.shizuku.provider = children(application, "provider").some((p) => className(p, pkg) === SHIZUKU_PROVIDER);
+  interfaces.shizuku.provider = children(application, "provider").some((p) => {
+    const name = className(p, pkg);
+    return typeof name === "string" && SHIZUKU_PROVIDERS.has(name);
+  });
 
   for (const type of COMPONENT_TAGS) {
     for (const element of children(application, type)) {
