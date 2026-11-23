@@ -1,6 +1,12 @@
 /**
- * The one date Saved keeps on the device: when it was last opened, which
- * decides which saved apps carry a release mark.
+ * The one date Saved keeps on the device, which decides which saved apps
+ * carry a release mark: the build time of the catalog on screen when Saved
+ * was last opened.
+ *
+ * The catalog's time and not the clock's, because a release reaches the app
+ * only with the next catalog. Opened at 20:00 on a catalog built at 01:00,
+ * Saved has not shown a release made at 10:00 that day; the clock's time
+ * would hide it for good when the next catalog brings it.
  *
  * The date is read once, the first time Saved is opened in a session of the
  * app, and the new one is stored at that moment. The value read stays in
@@ -9,11 +15,17 @@
  * never moves back: a tab still on an older catalog does not undo what a
  * newer one wrote.
  *
+ * A release is marked when it is later than both this date and the moment
+ * the app was saved. That leaves one gap: an app saved after its catalog was
+ * built is not marked for a release made between that build and the save,
+ * because which catalog was on screen at the save is not kept.
+ *
  * When the browser keeps no data, or the stored value cannot be read, there
  * is no date, and so no release mark.
  */
 
 import { signal, type ReadonlySignal } from "@preact/signals";
+import { parseTime } from "../lib/format.ts";
 import { createStore, isRecord, type StorageBackend, type Store } from "./storage.ts";
 
 export interface VisitData {
@@ -36,8 +48,12 @@ export function createVisitStore(backend?: StorageBackend | null): Store<VisitDa
 export interface LastVisit {
   /** The date this session measures release marks from; null until Saved is opened, and on a first visit. */
   readonly since: ReadonlySignal<number | null>;
-  /** Saved is being shown. The first call of a session reads the stored date and stores `stamp`; later calls do nothing. */
-  open(stamp: number): void;
+  /**
+   * Saved is being shown on this catalog. The first call of a session reads
+   * the stored date and stores the catalog's build time; later calls do
+   * nothing. A catalog with no readable build time stores nothing.
+   */
+  open(catalog: { generatedAt: string }): void;
 }
 
 export function createLastVisit(store: Store<VisitData>): LastVisit {
@@ -45,8 +61,9 @@ export function createLastVisit(store: Store<VisitData>): LastVisit {
   let opened = false;
   return {
     since,
-    open(stamp) {
-      if (opened) return;
+    open(catalog) {
+      const stamp = parseTime(catalog.generatedAt);
+      if (opened || stamp === null) return;
       opened = true;
       let previous: number | null = null;
       store.update((current) => {

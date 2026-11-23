@@ -531,7 +531,10 @@ are checked by hand on a phone: no automated test can prove them.
   only with the next catalog, however late the visit. A saved app is marked
   "Released <day>" when its latest release is later than both that date and
   its own `savedAt`; with no date (the first visit, storage refused) nothing
-  is. It is not part of export and import.
+  is. One gap is accepted: an app saved after its catalog was built is not
+  marked for a release made between that build and the save, because which
+  catalog was on screen at the save is not kept. The date is not part of
+  export and import.
 - Every read tolerates missing, corrupt or older-version data.
 - `navigator.storage.persist()` is requested after the first save; Settings
   shows whether storage is persistent and offers export. Export and import use

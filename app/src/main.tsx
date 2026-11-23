@@ -13,7 +13,6 @@ import { CatalogError, createOnDemand, sha256 } from "./catalog/load.ts";
 import { buildModel } from "./catalog/model.ts";
 import { loadCatalog } from "./catalog/source.ts";
 import { isFramed, platformOf } from "./links.ts";
-import { parseTime } from "./lib/format.ts";
 import { QUIET_MS, quietLimited } from "./lib/quiet.ts";
 import { afterLaunch, launchedFromNetwork, prepareLaunch, storedFetch, takeOverIfWaiting } from "./offline/client.ts";
 import { watchInstall } from "./state/install.ts";
@@ -61,10 +60,8 @@ async function start(): Promise<Services> {
   const vocabulary = buildVocabulary(model);
   performance.measure("atlas:model-build", "atlas:catalog-loaded");
   const router = new Router(browserEnv(catalogPlaces(model, vocabulary), captureScroll, settings.value.peek().resume));
-  /* Saved's marks are measured against the catalog on screen: a release the next catalog brings was not in this one, however late the visit. */
-  const catalogTime = parseTime(model.catalog.generatedAt);
   const noteVisit = (next: Navigation): void => {
-    if (catalogTime !== null && placeOf(next.route).kind === "saved") visit.open(catalogTime);
+    if (placeOf(next.route).kind === "saved") visit.open(model.catalog);
   };
   const first = router.start();
   noteVisit(first);
