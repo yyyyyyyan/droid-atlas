@@ -18,6 +18,7 @@ From the repository root, after `pnpm install`:
 | `node pipeline/build.ts --previous https://<site>/data/` | Compare with the live site's build (what CI should do) |
 | `pnpm --filter @droid-atlas/pipeline test` | Unit tests, and a real offline build when `.cache/` is filled |
 | `pnpm --filter @droid-atlas/pipeline typecheck` | `tsc --noEmit`, strict |
+| `node pipeline/scripts/read-package.ts <address> [--sha256 <hex>]` | Read one package's manifest by byte range and print the reading; not part of the build |
 
 Other options: `--out <dir>` (default `app/public/data`), `--cache <dir>`
 (default `.cache`), `--generated-at <iso>` (fixes the only clock-dependent
@@ -78,6 +79,12 @@ validate.ts, schema-check.ts  release gates
 emit.ts                       data directory: manifest, parts, shards, snapshots, licenses, version.json
 report.ts                     report.json, report.md
 build.ts                      orchestration and CLI
+apk/http.ts                   byte ranges over HTTPS: allowed hosts, redirects by hand, request, byte and time limits
+apk/zip.ts                    zip end record, central directory and one entry, by range
+apk/axml.ts                   Android binary XML → element tree, bounded
+apk/manifest.ts               element tree → declared interfaces (tiles, Tasker, share, links, actions, Shizuku)
+apk/read.ts                   one package address → PackageReading (schema/package-reading.ts)
+scripts/read-package.ts       one reading printed, for checking by hand
 ```
 
 Data flow: each parser produces `SourceEntry` records; `identity.ts` groups
@@ -602,6 +609,12 @@ nothing about the machine or user. Index, list and GitHub fetches retry with
 backoff (4 tries, 2 s doubling) before failing the build; icon lookups and
 download publications never fail it. Online builds re-query GitHub for every
 repository so stars, activity and release downloads stay current.
+
+Package readings (`apk/`) are not part of the build. `scripts/read-package.ts`
+requests `f-droid.org/repo/` (or `/archive/`) and GitHub release download
+addresses, and follows redirects to `objects.githubusercontent.com` and
+`release-assets.githubusercontent.com` only: one request at a time, at most
+10 a reading, every one a ranged `GET` with an explicit range.
 
 ### Repository hygiene
 

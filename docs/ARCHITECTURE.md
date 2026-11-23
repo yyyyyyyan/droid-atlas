@@ -49,6 +49,7 @@ placements.json              apps placed by hand, each with a reason
 icons.ts                     find, fetch and credit icons; 192 and 384 px WebP (LICENSING.md §1.3)
 validate.ts                  schema, invariants, comparison with the previous good catalog
 emit.ts                      content-addressed data directory and version.json
+apk/                         package readings by byte range, outside the build (§ Package readings)
 ```
 
 ### Identity
@@ -196,11 +197,56 @@ not yet carry the level; the mapping is by kind of fact.
 | Repository archived, latest release and whether it carries an APK | GitHub (the project's own act) | Documented |
 | Stars, last push, fork parent, new address | GitHub | Reported |
 | Download figures | F-Droid, IzzyOnDroid, GitHub | Reported |
+| A package reading's interfaces (§ Package readings) | The package | Statically discovered |
 
 No fact in the catalog is experimentally verified. A facet that combines
 statements keeps the level of each: the Shizuku evidence of one app can hold
 a reported statement (a list names it) and a statically discovered one (an
 index read the permission from its package).
+
+### Package readings
+
+`pipeline/apk/` reads what one version of a package declares in its manifest,
+without downloading the whole file and without running anything. The result
+is a `PackageReading` (`schema/package-reading.ts`), whose evidence level is
+always statically discovered. It names the package's address, file name,
+size and the hash its index or release states, the version, the date, and the
+hash of the manifest bytes that were read.
+
+- **What it reads.** Quick Settings tiles, Tasker (Locale) plug-in
+  components, share targets and the content types they name, link schemes and
+  hosts, the app's own actions other apps may call, and Shizuku's permission
+  and provider. Each comes with its component's `exported` flag and guarding
+  permission exactly as written. Nothing is inferred from defaults, and
+  nothing counts or lists components by whether a permission guards them.
+- **What it does not read.** The resource table, so no labels. A value that
+  is a resource reference is recorded as not read, with the reference.
+  Receivers registered at run time, dynamic shortcuts and the extras an
+  action needs are not in a manifest at all. A declaration says an interface
+  exists in that version; it says nothing about whether it works.
+- **By byte range.** The first request asks for four bytes, which gives the
+  file's size and shows it starts like a zip. Then the end of the file (the
+  zip's end record, and usually its central directory), then the manifest
+  entry. Every range is explicit, since GitHub's file host refuses a request
+  for "the last N bytes". A reading takes three to four requests and about
+  70 to 170 kB.
+- **Hosts.** Only F-Droid's repository and archive addresses
+  (`https://f-droid.org/repo/…`, `…/archive/…`) and GitHub release download
+  addresses are accepted. Redirects are followed by hand, and only to GitHub's
+  release file hosts.
+- **Untrusted bytes.** Every size, count and offset is bounded and checked:
+  requests, bytes received and file size per reading, per-request and
+  whole-reading time limits, central directory size and entry count,
+  compressed and inflated manifest size, string count and length, element
+  count, attributes per element and nesting depth. Zip64, split archives,
+  encryption, compression other than deflate, a duplicated manifest entry and
+  a manifest failing its CRC-32 are refused. Kept values must match the
+  pattern of their kind (package id, class name, scheme, host, content type,
+  or printable ASCII for actions and permissions); anything else is recorded
+  as not read.
+- **By hand.** `node pipeline/scripts/read-package.ts <address> [--sha256
+  <hex>]` prints one reading. Package readings are not part of the build and
+  nothing on the site shows them.
 
 ### Validation gates
 
