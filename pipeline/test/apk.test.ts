@@ -483,6 +483,75 @@ test("an address must already be in the form the URL parser gives it, and is not
   assert.equal(server.requests.length, 0);
 });
 
+/** A fetch that answers request `n` (from 0) with `answer(n, range)`. */
+function scripted(answer: (n: number, range: string, signal: AbortSignal | undefined) => Response): typeof fetch {
+  let n = 0;
+  return (async (_input: string | URL | Request, init?: RequestInit) => {
+    const range = new Headers(init?.headers).get("range") ?? "";
+    return answer(n++, range, init?.signal ?? undefined);
+  }) as typeof fetch;
+}
+
+function ranged(bytes: Uint8Array, range: string, total = bytes.length, headers: Record<string, string> = {}): Response {
+  const [, from, to] = /^bytes=(\d+)-(\d+)$/.exec(range) ?? [];
+  const start = Number(from);
+  const end = Number(to);
+  return new Response(bytes.slice(start, end + 1), { status: 206, headers: { "content-range": `bytes ${start}-${end}/${total}`, ...headers } });
+}
+
+test("redirects lead only to an allowed host of the same rule, over https, without user info or port", async () => {
+  const bytes = sampleZip();
+  for (const [from, to] of [
+    [GITHUB, "http://release-assets.githubusercontent.com/x/tiles-1.0.apk"],
+    [GITHUB, "https://someone@release-assets.githubusercontent.com/x/tiles-1.0.apk"],
+    [GITHUB, "https://release-assets.githubusercontent.com:8443/x/tiles-1.0.apk"],
+    [FDROID, "https://release-assets.githubusercontent.com/x/tiles-1.0.apk"],
+  ] as const) {
+    const server = rangeServer({ [to]: bytes }, { redirects: { [from]: to } });
+    await assert.rejects(openPackage(from, { fetch: server.fetch }), /redirect to a host that is not allowed/, to);
+    assert.equal(server.requests.length, 1, `${to} was not requested`);
+  }
+});
+
+test("a server that changes the file size, encodes the body, or stalls mid-body is refused", async () => {
+  const bytes = sampleZip();
+  const grows = scripted((n, range) => ranged(bytes, range, n === 0 ? bytes.length : bytes.length + 1));
+  const source = await openPackage(FDROID, { fetch: grows });
+  await assert.rejects(source.read(0, 10), /another range/);
+
+  const gzip = scripted((_n, range) => ranged(bytes, range, bytes.length, { "content-encoding": "gzip" }));
+  await assert.rejects(openPackage(FDROID, { fetch: gzip }), /gzip-encoded/);
+
+  const stalls = scripted((n, range, signal) => {
+    if (n === 0) return ranged(bytes, range);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.slice(0, 5));
+        signal?.addEventListener("abort", () => controller.error(signal.reason));
+      },
+    });
+    return new Response(body, { status: 206, headers: { "content-range": `bytes 0-99/${bytes.length}` } });
+  });
+  const slow = await openPackage(FDROID, { fetch: stalls, limits: { ...HTTP_LIMITS, requestTimeoutMs: 50 } });
+  await assert.rejects(slow.read(0, 100), /interrupted/);
+});
+
+test("header values reach an error message bounded and cleaned", async () => {
+  const bytes = sampleZip();
+  const odd = `gzip\u0007\u00ff${"x".repeat(500)}`;
+  const encoded = scripted((_n, range) => ranged(bytes, range, bytes.length, { "content-encoding": odd }));
+  await assert.rejects(openPackage(FDROID, { fetch: encoded }), (error: unknown) => {
+    const message = error instanceof Error ? error.message : "";
+    return /encoded/.test(message) && message.length < 200 && /^[\x20-\x7e]*$/.test(message);
+  });
+  const rangeText = `bytes 0-3/${"9".repeat(400)}\u0007`;
+  const badRange = scripted(() => new Response(bytes.slice(0, 4), { status: 206, headers: { "content-range": rangeText } }));
+  await assert.rejects(openPackage(FDROID, { fetch: badRange }), (error: unknown) => {
+    const message = error instanceof Error ? error.message : "";
+    return message.length < 200 && /^[\x20-\x7e]*$/.test(message);
+  });
+});
+
 test("time limits and the request budget end a reading", async () => {
   const limits = { requestTimeoutMs: 50, totalTimeoutMs: 1000, maxRequests: 10, maxBytes: 1 << 20, maxRedirects: 3, maxFileBytes: 1 << 30 };
   await assert.rejects(

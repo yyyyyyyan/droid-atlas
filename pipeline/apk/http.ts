@@ -55,6 +55,13 @@ export const PACKAGE_HOSTS: readonly HostRule[] = [
 
 export class HttpReadError extends Error {}
 
+/** A server-given value fit for a message: printable ASCII only, at most 60 characters. */
+function clean(value: string | null): string {
+  if (value === null) return "none";
+  const printable = value.replace(/[^\x20-\x7e]/g, "?");
+  return printable.length > 60 ? `${printable.slice(0, 60)}...` : printable;
+}
+
 /** Which host a package address belongs to, or null when it is not one the reader may use. */
 export function packageHost(address: string, hosts: readonly HostRule[] = PACKAGE_HOSTS): HostRule | null {
   let url: URL;
@@ -102,7 +109,7 @@ export async function openPackage(address: string, options: OpenOptions = {}): P
     if (!reader) throw new HttpReadError("response has no body");
     for (;;) {
       const { done, value } = await reader.read().catch((error: unknown) => {
-        throw new HttpReadError(`response interrupted: ${error instanceof Error ? error.message : String(error)}`);
+        throw new HttpReadError(`response interrupted: ${clean(error instanceof Error ? error.message : String(error))}`);
       });
       if (done) break;
       if (filled + value.byteLength > expected) {
@@ -134,7 +141,7 @@ export async function openPackage(address: string, options: OpenOptions = {}): P
           signal: AbortSignal.any([deadline, AbortSignal.timeout(limits.requestTimeoutMs)]),
         });
       } catch (error) {
-        throw new HttpReadError(`request failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new HttpReadError(`request failed: ${clean(error instanceof Error ? error.message : String(error))}`);
       }
       if (response.status >= 300 && response.status < 400) {
         await response.body?.cancel();
@@ -148,7 +155,7 @@ export async function openPackage(address: string, options: OpenOptions = {}): P
           throw new HttpReadError("redirect to a location that does not parse");
         }
         if (next.protocol !== "https:" || next.username || next.password || next.port || !allowedRedirects.includes(next.hostname)) {
-          throw new HttpReadError(`redirect to a host that is not allowed: ${next.hostname}`);
+          throw new HttpReadError(`redirect to a host that is not allowed: ${clean(next.hostname)}`);
         }
         current = next.href;
         continue;
@@ -160,13 +167,13 @@ export async function openPackage(address: string, options: OpenOptions = {}): P
       const encoding = response.headers.get("content-encoding");
       if (encoding && encoding !== "identity") {
         await response.body?.cancel();
-        throw new HttpReadError(`response is ${encoding}-encoded`);
+        throw new HttpReadError(`response is ${clean(encoding)}-encoded`);
       }
       const range = CONTENT_RANGE.exec(response.headers.get("content-range") ?? "");
       const total = range ? Number(range[3]) : NaN;
       if (!range || Number(range[1]) !== start || Number(range[2]) !== end || (size !== null && total !== size)) {
         await response.body?.cancel();
-        throw new HttpReadError(`server answered another range: ${response.headers.get("content-range")}`);
+        throw new HttpReadError(`server answered another range: ${clean(response.headers.get("content-range"))}`);
       }
       if (size === null) {
         if (!Number.isSafeInteger(total) || total > limits.maxFileBytes) {
