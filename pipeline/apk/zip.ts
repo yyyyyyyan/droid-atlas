@@ -119,12 +119,12 @@ export async function readDirectory(source: RangeSource, limits: ZipLimits = ZIP
   if (count > limits.maxEntries) throw new ZipError(`${count} entries`);
   if (directorySize > limits.maxDirectoryBytes) throw new ZipError(`central directory of ${directorySize} bytes`);
   const endRecordOffset = tailStart + at;
-  if (directoryOffset + directorySize > endRecordOffset) throw new ZipError("central directory overlaps its end record");
+  if (directoryOffset + directorySize !== endRecordOffset) throw new ZipError("central directory does not end at its end record");
 
   const directory =
     directoryOffset >= tailStart
-      ? tail.subarray(directoryOffset - tailStart, directoryOffset - tailStart + directorySize)
-      : join(await source.read(directoryOffset, tailStart - directoryOffset), tail.subarray(0, directoryOffset + directorySize - tailStart));
+      ? tail.subarray(directoryOffset - tailStart, at)
+      : join(await source.read(directoryOffset, tailStart - directoryOffset), tail.subarray(0, at));
   const data = view(directory);
   const decoder = new TextDecoder("utf-8", { fatal: true });
   const entries: ZipEntry[] = [];

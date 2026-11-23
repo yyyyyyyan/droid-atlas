@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EVIDENCE_LEVELS } from "../../schema/catalog.ts";
 import { AXML_LIMITS, AxmlError, parseAxml, type AxmlLimits } from "../apk/axml.ts";
-import { HttpReadError, openPackage, packageHost } from "../apk/http.ts";
+import { HTTP_LIMITS, HttpReadError, openPackage, packageHost } from "../apk/http.ts";
 import { ManifestError, readManifest } from "../apk/manifest.ts";
 import { PackageReadError, readPackage } from "../apk/read.ts";
 import { findEntry, readDirectory, readEntry, type RangeSource, ZipError } from "../apk/zip.ts";
@@ -279,6 +279,25 @@ test("the end of the file is read small first, and widened only for a long comme
   await readEntry(source, directory, findEntry(directory, "AndroidManifest.xml"));
 });
 
+test("the central directory must end where its end record starts, and only its stated size is read", async () => {
+  const zip = buildZip([{ name: "AndroidManifest.xml", data: encodeAxml(sampleManifest()) }]);
+  const eocd = zip.length - 22;
+  const gap = new Uint8Array(zip.length + 100_000);
+  gap.set(zip.subarray(0, eocd));
+  gap.set(zip.subarray(eocd), eocd + 100_000);
+  const source = memory(gap);
+  await assert.rejects(readDirectory(source), (error: unknown) => error instanceof ZipError && /does not end at its end record/.test(error.message));
+  assert.ok(source.reads.every(([, length]) => length <= 22 + 0xffff), "nothing past the tail and the stated directory is read");
+});
+
+test("a read larger than what is left of the byte budget is refused before it is sent", async () => {
+  const server = rangeServer({ [FDROID]: sampleZip(undefined, [{ name: "assets/big.bin", data: new Uint8Array(20_000), method: 0 }]) });
+  const limits = { ...HTTP_LIMITS, maxBytes: 1000 };
+  const source = await openPackage(FDROID, { fetch: server.fetch, limits });
+  await assert.rejects(source.read(0, 5000), (error: unknown) => error instanceof HttpReadError && /byte budget/.test(error.message));
+  assert.equal(server.requests.length, 1, "only the probe was sent");
+});
+
 test("truncated, oversized and malformed zips fail cleanly", async () => {
   const manifest = encodeAxml(sampleManifest());
   const fails = async (bytes: Uint8Array, pattern: RegExp, name = "AndroidManifest.xml"): Promise<void> => {
@@ -293,7 +312,7 @@ test("truncated, oversized and malformed zips fail cleanly", async () => {
   await fails(good.subarray(0, 10), /too small/);
   await fails(buildZip([{ name: "AndroidManifest.xml", data: manifest }], { eocd: { count: 0xffff } }), /zip64/);
   await fails(buildZip([{ name: "AndroidManifest.xml", data: manifest }], { eocd: { disk: 1 } }), /split/);
-  await fails(buildZip([{ name: "AndroidManifest.xml", data: manifest }], { eocd: { directoryOffset: 0x7fffff00 } }), /overlaps/);
+  await fails(buildZip([{ name: "AndroidManifest.xml", data: manifest }], { eocd: { directoryOffset: 0x7fffff00 } }), /does not end at its end record/);
   await fails(buildZip([{ name: "AndroidManifest.xml", data: manifest }], { eocd: { directorySize: 9 * 1024 * 1024 } }), /central directory of/);
   await fails(buildZip([{ name: "AndroidManifest.xml", data: manifest }], { eocd: { count: 3 } }), /truncated/);
   await fails(buildZip([{ name: "classes.dex", data: manifest }]), /no AndroidManifest.xml/);
@@ -397,7 +416,7 @@ test("time limits and the request budget end a reading", async () => {
   );
   await assert.rejects(
     readPackage(FDROID, { fetch: rangeServer({ [FDROID]: bytes }).fetch, limits: { ...limits, maxBytes: 1000 } }),
-    /more than 1000 bytes/,
+    /byte budget/,
   );
   await assert.rejects(
     readPackage(FDROID, { fetch: rangeServer({ [FDROID]: bytes }).fetch, limits: { ...limits, maxFileBytes: 1000 } }),

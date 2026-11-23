@@ -122,6 +122,7 @@ export async function openPackage(address: string, options: OpenOptions = {}): P
 
   async function request(start: number, length: number): Promise<Uint8Array> {
     const end = start + length - 1;
+    if (length > limits.maxBytes - transfer.bytes) throw new HttpReadError(`a read of ${length} bytes is over what is left of the byte budget`);
     for (let hops = 0; ; hops++) {
       if (++transfer.requests > limits.maxRequests) throw new HttpReadError(`more than ${limits.maxRequests} requests`);
       let response: Response;
