@@ -48,13 +48,13 @@ const SEND = "android.intent.action.SEND";
 const SEND_MULTIPLE = "android.intent.action.SEND_MULTIPLE";
 const VIEW = "android.intent.action.VIEW";
 const BROWSABLE = "android.intent.category.BROWSABLE";
-const TASKER: Readonly<Record<string, TaskerRole>> = {
-  "com.twofortyfouram.locale.intent.action.EDIT_SETTING": "action-edit",
-  "com.twofortyfouram.locale.intent.action.FIRE_SETTING": "action-fire",
-  "com.twofortyfouram.locale.intent.action.EDIT_CONDITION": "condition-edit",
-  "com.twofortyfouram.locale.intent.action.QUERY_CONDITION": "condition-query",
-  "net.dinglisch.android.tasker.ACTION_EDIT_EVENT": "event-edit",
-};
+const TASKER: ReadonlyMap<string, TaskerRole> = new Map([
+  ["com.twofortyfouram.locale.intent.action.EDIT_SETTING", "action-edit"],
+  ["com.twofortyfouram.locale.intent.action.FIRE_SETTING", "action-fire"],
+  ["com.twofortyfouram.locale.intent.action.EDIT_CONDITION", "condition-edit"],
+  ["com.twofortyfouram.locale.intent.action.QUERY_CONDITION", "condition-query"],
+  ["net.dinglisch.android.tasker.ACTION_EDIT_EVENT", "event-edit"],
+]);
 /** Namespaces whose actions belong to the platform or a library, not to the app. */
 const PLATFORM_PREFIXES = ["android.", "com.android.", "androidx.", "com.google.", "com.twofortyfouram.", "net.dinglisch.android.tasker."];
 const SHIZUKU_PERMISSION = "moe.shizuku.manager.permission.API_V23";
@@ -195,7 +195,7 @@ export function readManifest(root: AxmlElement): ManifestFacts {
       const isActivity = type === "activity" || type === "activity-alias";
 
       if (type === "service" && actions.includes(TILE)) interfaces.tiles.push(component);
-      for (const role of new Set(actions.filter(isText).flatMap((a) => TASKER[a] ?? []))) {
+      for (const role of new Set(actions.filter(isText).flatMap((a) => TASKER.get(a) ?? []))) {
         interfaces.taskerPlugin.push({ role, component });
       }
       if (component.exported !== false) {

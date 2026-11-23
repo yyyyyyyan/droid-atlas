@@ -146,6 +146,15 @@ test("framework attributes are found by resource id when their names are obfusca
   assert.deepEqual(obfuscated, plain);
 });
 
+test("action names that are also names of object properties are not taken for Tasker roles", () => {
+  const manifest = el("manifest", { "@package": PKG }, [
+    el("application", {}, [el("receiver", { name: ".R" }, [filter(["constructor", "toString", "__proto__", "hasOwnProperty"])])]),
+  ]);
+  const facts = readManifest(parseAxml(encodeAxml(manifest)));
+  assert.deepEqual(facts.interfaces.taskerPlugin, []);
+  assert.equal(facts.interfaces.actions.length, 4);
+});
+
 test("values with unexpected text or types are not kept", () => {
   const manifest = el("manifest", { "@package": PKG }, [
     el("application", {}, [
@@ -275,7 +284,7 @@ test("only F-Droid and GitHub release addresses are accepted", () => {
     "https://apt.izzysoft.de/fdroid/repo/org.example.tiles_7.apk",
     "http://f-droid.org/repo/org.example.tiles_7.apk",
     "https://f-droid.org:8443/repo/org.example.tiles_7.apk",
-    "https://user@f-droid.org/repo/org.example.tiles_7.apk",
+    Object.assign(new URL(FDROID), { username: "someone" }).href,
     "https://f-droid.org/repo/../index-v2.json",
     "https://f-droid.org.example.com/repo/a.apk",
     "https://github.com/example/tiles/archive/main.zip",
