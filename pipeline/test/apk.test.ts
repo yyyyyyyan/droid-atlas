@@ -595,3 +595,35 @@ test("time limits and the request budget end a reading", async () => {
     /file of \d+ bytes/,
   );
 });
+
+test("a list of more than 256 interfaces, or of more than 256 values in one, refuses the manifest", () => {
+  const many = (n: number, prefix: string) => Array.from({ length: n }, (_, i) => `${prefix}.${i}`);
+  const actions = el("manifest", { "@package": PKG }, [
+    el("application", {}, [el("receiver", { name: ".R", exported: true }, [filter(many(257, "org.example.A"))])]),
+  ]);
+  assert.throws(() => readManifest(parseAxml(encodeAxml(actions))), (error: unknown) => error instanceof ManifestError && /more than 256/.test(error.message));
+  const hosts = el("manifest", { "@package": PKG }, [
+    el("application", {}, [
+      el("activity", { name: ".L", exported: true }, [
+        filter(["android.intent.action.VIEW"], [], [{ scheme: "https" }, ...many(257, "h").map((host) => ({ host: `${host}.example.org` }))]),
+      ]),
+    ]),
+  ]);
+  assert.throws(() => readManifest(parseAxml(encodeAxml(hosts))), /more than 256/);
+  const fits = el("manifest", { "@package": PKG }, [
+    el("application", {}, [el("receiver", { name: ".R", exported: true }, [filter(many(256, "org.example.A"))])]),
+  ]);
+  assert.equal(readManifest(parseAxml(encodeAxml(fits))).interfaces.actions.length, 256);
+});
+
+test("a reading over 256 KB as JSON is refused as a manifest failure", async () => {
+  const long = (i: number) => `org.example.${"a".repeat(480)}.N${i}`;
+  const components = Array.from({ length: 200 }, (_, i) =>
+    el("receiver", { name: `.C${"b".repeat(400)}${i}`, exported: true, permission: `org.example.${"p".repeat(480)}` }, [filter([long(i)])]),
+  );
+  const manifest = encodeAxml(el("manifest", { "@package": PKG }, [el("application", {}, components)]));
+  const server = rangeServer({ [FDROID]: buildZip([{ name: "AndroidManifest.xml", data: manifest }]) });
+  await assert.rejects(readPackage(FDROID, { fetch: server.fetch }), (error: unknown) => {
+    return error instanceof PackageReadError && error.stage === "manifest" && /over 262144 bytes/.test(error.message);
+  });
+});

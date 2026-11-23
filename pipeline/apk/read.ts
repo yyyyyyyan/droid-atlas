@@ -28,6 +28,8 @@ export class PackageReadError extends Error {
 }
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
+/** Largest reading kept, as JSON. */
+export const MAX_READING_BYTES = 256 * 1024;
 const FILE_NAME_RE = /^[A-Za-z0-9._+-]{1,255}$/;
 
 function fileName(address: string): string {
@@ -61,7 +63,7 @@ export async function readPackage(address: string, options: ReadOptions = {}): P
     const directory = await readDirectory(source);
     const manifestBytes = await readEntry(source, directory, findEntry(directory, "AndroidManifest.xml"));
     const facts = readManifest(parseAxml(manifestBytes));
-    return {
+    const reading: PackageReading = {
       format: PACKAGE_READING_FORMAT,
       evidence: "statically-discovered",
       source: { host: source.host, url: address },
@@ -73,6 +75,10 @@ export async function readPackage(address: string, options: ReadOptions = {}): P
       transfer: { ...source.transfer },
       interfaces: facts.interfaces,
     };
+    if (Buffer.byteLength(JSON.stringify(reading)) > MAX_READING_BYTES) {
+      throw new PackageReadError("manifest", `reading over ${MAX_READING_BYTES} bytes as JSON`);
+    }
+    return reading;
   } catch (error) {
     rethrow(error);
   }

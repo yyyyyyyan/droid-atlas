@@ -44,6 +44,8 @@ const SCHEME_RE = /^[A-Za-z][A-Za-z0-9+.-]*$/;
 const HOST_RE = /^(\*|(\*\.)?[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*)$/;
 const MIME_RE = /^[A-Za-z0-9*][A-Za-z0-9!#$&^_.+*-]*(\/[A-Za-z0-9*][A-Za-z0-9!#$&^_.+*-]*)?$/;
 const MAX_TOKEN = 512;
+/** Most entries in one interface list, and most values (schemes, hosts, content types) in one entry. */
+export const MAX_LIST = 256;
 
 const TILE = "android.service.quicksettings.action.QS_TILE";
 const SEND = "android.intent.action.SEND";
@@ -234,6 +236,22 @@ export function readManifest(root: AxmlElement): ManifestFacts {
         }
       }
     }
+  }
+
+  const lists: [string, unknown[]][] = [
+    ["tiles", interfaces.tiles],
+    ["Tasker plug-in components", interfaces.taskerPlugin],
+    ["share targets", interfaces.shareTargets],
+    ["links", interfaces.links],
+    ["actions", interfaces.actions],
+    ...interfaces.shareTargets.map((s): [string, unknown[]] => ["content types", s.mimeTypes]),
+    ...interfaces.links.flatMap((l): [string, unknown[]][] => [
+      ["schemes", l.schemes],
+      ["hosts", l.hosts],
+    ]),
+  ];
+  for (const [name, list] of lists) {
+    if (list.length > MAX_LIST) throw new ManifestError(`more than ${MAX_LIST} ${name}`);
   }
 
   return {
