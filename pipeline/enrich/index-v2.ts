@@ -148,6 +148,39 @@ function record(origin: IndexOrigin, indexAt: string, repoBase: string, pkg: str
   };
 }
 
+/** The file of a package's latest version, as the index states it. */
+export interface IndexFile {
+  /** Path below the repository's base address, starting with `/`. */
+  name: string;
+  sha256: string;
+  size: number;
+}
+
+const INDEX_FILE_NAME_RE = /^\/[A-Za-z0-9._-]+\.apk$/;
+const SHA256_RE = /^[0-9a-f]{64}$/;
+
+/**
+ * The file of the latest version of each requested package, the version
+ * `IndexFacts` describes. A package whose entry names no well-formed APK file
+ * and hash is absent from the result.
+ */
+export function latestFiles(json: unknown, pkgs: Iterable<string>): Map<string, IndexFile> {
+  const packages = object(object(json)?.["packages"]);
+  const files = new Map<string, IndexFile>();
+  if (!packages) return files;
+  for (const pkg of pkgs) {
+    if (!Object.hasOwn(packages, pkg)) continue;
+    const file = object(latestVersion(object(object(packages[pkg])?.["versions"]))?.["file"]);
+    const name = string(file?.["name"]);
+    const sha256 = string(file?.["sha256"]);
+    const size = int(file?.["size"]);
+    if (name && INDEX_FILE_NAME_RE.test(name) && sha256 && SHA256_RE.test(sha256) && size !== null && size > 0) {
+      files.set(pkg, { name, sha256, size });
+    }
+  }
+  return files;
+}
+
 const ANTI_FEATURE_KEY_RE = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
 
 /** `repo.antiFeatures`: key → English name and description, plain text. Keys that are not simple identifiers are dropped. */
