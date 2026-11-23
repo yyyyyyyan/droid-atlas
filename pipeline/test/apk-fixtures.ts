@@ -12,6 +12,7 @@ export const ANDROID_IDS: Readonly<Record<string, number>> = {
   label: 0x01010001,
   name: 0x01010003,
   permission: 0x01010006,
+  enabled: 0x0101000e,
   exported: 0x01010010,
   mimeType: 0x01010026,
   scheme: 0x01010027,
@@ -20,12 +21,14 @@ export const ANDROID_IDS: Readonly<Record<string, number>> = {
   versionName: 0x0101021c,
 };
 
-export type FakeValue = string | boolean | number | { ref: number } | { other: number };
+export type FakeValue = string | boolean | number | { ref: number } | { dynamicRef: number } | { other: number };
 
 export interface FakeAttribute {
   name: string;
   /** In the android namespace with its framework id (the default), or plain. */
   plain?: boolean;
+  /** In the android namespace, but with no resource-map entry: Android does not see it. */
+  unmapped?: boolean;
   value: FakeValue;
 }
 
@@ -35,12 +38,16 @@ export interface FakeElement {
   children?: FakeElement[];
 }
 
-/** An element whose attribute keys name android attributes; a key starting with `@` names a plain one (`@package`). */
+/** An element whose attribute keys name android attributes; a key starting with `@` names a plain one (`@package`), and one starting with `!` an android attribute missing from the resource map. */
 export function el(name: string, attrs: Record<string, FakeValue> = {}, children: FakeElement[] = []): FakeElement {
   return {
     name,
     attrs: Object.entries(attrs).map(([key, value]) =>
-      key.startsWith("@") ? { name: key.slice(1), plain: true, value } : { name: key, value },
+      key.startsWith("@")
+        ? { name: key.slice(1), plain: true, value }
+        : key.startsWith("!")
+          ? { name: key.slice(1), unmapped: true, value }
+          : { name: key, value },
     ),
     children,
   };
@@ -124,7 +131,7 @@ export function encodeAxml(root: FakeElement, options: EncodeOptions = {}): Uint
   walk(root, (element) => {
     others.push(element.name);
     for (const attr of element.attrs ?? []) {
-      if (attr.plain) others.push(attr.name);
+      if (attr.plain || attr.unmapped) others.push(attr.name);
       else if (!androidNames.includes(attr.name)) androidNames.push(attr.name);
       if (typeof attr.value === "string") others.push(attr.value);
     }
@@ -178,7 +185,7 @@ export function encodeAxml(root: FakeElement, options: EncodeOptions = {}): Uint
     body.u16(0);
     for (const attr of attrs) {
       body.u32(attr.plain ? 0xffffffff : nsIndex);
-      body.u32(attr.plain ? intern(attr.name) : (indexOf.get(`attr:${attr.name}`) as number));
+      body.u32(attr.plain || attr.unmapped ? intern(attr.name) : (indexOf.get(`attr:${attr.name}`) as number));
       const value = attr.value;
       if (typeof value === "string") {
         const index = intern(value);
@@ -197,6 +204,9 @@ export function encodeAxml(root: FakeElement, options: EncodeOptions = {}): Uint
         } else if (typeof value === "number") {
           body.u8(0x10);
           body.u32(value);
+        } else if ("dynamicRef" in value) {
+          body.u8(0x07);
+          body.u32(value.dynamicRef);
         } else if ("ref" in value) {
           body.u8(0x01);
           body.u32(value.ref);

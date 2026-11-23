@@ -69,6 +69,7 @@ const UTF8_FLAG = 1 << 8;
 const NO_INDEX = 0xffffffff;
 
 const TYPE_REFERENCE = 0x01;
+const TYPE_DYNAMIC_REFERENCE = 0x07;
 const TYPE_STRING = 0x03;
 const TYPE_INT_DEC = 0x10;
 const TYPE_INT_HEX = 0x11;
@@ -210,6 +211,7 @@ function attributeValue(view: View, at: number, rawValue: number, string: (index
     case TYPE_INT_HEX:
       return { type: "int", value: data };
     case TYPE_REFERENCE:
+    case TYPE_DYNAMIC_REFERENCE:
       return { type: "reference", ref: data };
     default:
       return { type: "other", dataType };

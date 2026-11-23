@@ -39,6 +39,8 @@ export interface DeclaredComponent {
   name: Declared<string>;
   /** `android:exported` as written, or null when the manifest does not state it. */
   exported: Declared<boolean> | null;
+  /** `android:enabled` as written, or null when the manifest does not state it. A component the manifest disables may be enabled while the app runs. */
+  enabled: Declared<boolean> | null;
   /** `android:permission` as written, or null when the manifest states none. */
   permission: Declared<string> | null;
 }
@@ -97,8 +99,8 @@ export interface PackageReading {
   version: {
     /** `android:versionName`, or null when the manifest states none. */
     name: Declared<string> | null;
-    /** `android:versionCode`, or null when the manifest states none or it is not a number. */
-    code: number | null;
+    /** `android:versionCode` (0 to 2,147,483,647), or null when the manifest states none. */
+    code: Declared<number> | null;
   };
   /** The manifest as read from the package: SHA-256 and size of its uncompressed bytes. */
   manifest: { sha256: string; sizeBytes: number };

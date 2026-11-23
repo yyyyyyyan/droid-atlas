@@ -44,6 +44,7 @@ const PACKAGE_RE = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/;
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 const FILE_NAME_RE = /^[A-Za-z0-9._+-]{1,255}$/;
 const PRINTABLE_RE = /^[\x21-\x7e]{1,512}$/;
+const VERSION_NAME_RE = /^[\x21-\x7e]([\x20-\x7e]{0,254}[\x21-\x7e])?$/;
 const COMPONENT_TYPES = new Set(["activity", "activity-alias", "service", "receiver"]);
 const TASKER_ROLES = new Set(["action-edit", "action-fire", "condition-edit", "condition-query", "event-edit"]);
 const FAILURE_KINDS = new Set<string>(["address", "http", "zip", "manifest", "unexpected", "release-lookup"]);
@@ -64,16 +65,20 @@ function iso(value: unknown): boolean {
   return typeof value === "string" && ISO_RE.test(value) && Number.isFinite(Date.parse(value));
 }
 
-/** A `Declared<string>`: printable text or an `Unread`. */
-function declaredText(value: unknown): boolean {
-  if (typeof value === "string") return PRINTABLE_RE.test(value);
+/** An `Unread`. */
+function unread(value: unknown): boolean {
   if (!isObject(value)) return false;
   if (value["unread"] === "unexpected-value") return Object.keys(value).length === 1;
   return value["unread"] === "resource-reference" && typeof value["ref"] === "string" && /^0x[0-9a-f]{8}$/.test(value["ref"]);
 }
 
+/** A `Declared<string>`: printable text or an `Unread`. */
+function declaredText(value: unknown): boolean {
+  return typeof value === "string" ? PRINTABLE_RE.test(value) : unread(value);
+}
+
 function declaredFlag(value: unknown): boolean {
-  return typeof value === "boolean" || (isObject(value) && declaredText(value));
+  return typeof value === "boolean" || unread(value);
 }
 
 function component(value: unknown): boolean {
@@ -83,6 +88,7 @@ function component(value: unknown): boolean {
     COMPONENT_TYPES.has(value["type"]) &&
     declaredText(value["name"]) &&
     (value["exported"] === null || declaredFlag(value["exported"])) &&
+    (value["enabled"] === null || declaredFlag(value["enabled"])) &&
     (value["permission"] === null || declaredText(value["permission"]))
   );
 }
@@ -120,7 +126,9 @@ export function checkReading(value: unknown): string[] {
   need(typeof value["package"] === "string" && PACKAGE_RE.test(value["package"]), "package");
   const version = value["version"];
   need(
-    isObject(version) && (version["name"] === null || declaredText(version["name"])) && (version["code"] === null || count(version["code"])),
+    isObject(version) &&
+      (version["name"] === null || (typeof version["name"] === "string" ? VERSION_NAME_RE.test(version["name"]) : unread(version["name"]))) &&
+      (version["code"] === null || (count(version["code"]) && (version["code"] as number) <= 0x7fffffff) || unread(version["code"])),
     "version",
   );
   const manifest = value["manifest"];

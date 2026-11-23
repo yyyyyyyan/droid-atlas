@@ -5,9 +5,9 @@
  *
  * Elements are read only where Android reads them (`manifest > application >
  * activity > intent-filter > action`, and so on). Framework attributes are
- * matched by resource id, which is what Android matches, and by name only
- * when the file maps no id to them. Values are validated before they are
- * kept; a resource reference or an unexpected value becomes `Unread`.
+ * matched by resource id alone, as Android matches them. Values are validated
+ * before they are kept; a resource reference or an unexpected value becomes
+ * `Unread`.
  */
 import type {
   ComponentType,
@@ -19,12 +19,11 @@ import type {
 } from "../../schema/package-reading.ts";
 import type { AxmlAttribute, AxmlElement } from "./axml.ts";
 
-const ANDROID_NS = "http://schemas.android.com/apk/res/android";
-
 /** Framework attribute ids (`android.R.attr`). */
 const ATTR = {
   name: 0x01010003,
   permission: 0x01010006,
+  enabled: 0x0101000e,
   exported: 0x01010010,
   mimeType: 0x01010026,
   scheme: 0x01010027,
@@ -37,6 +36,9 @@ const PACKAGE_RE = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/;
 const CLASS_RE = /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
 /** Printable ASCII without spaces: actions, categories and permissions. */
 const TOKEN_RE = /^[\x21-\x7e]+$/;
+/** Printable ASCII with spaces, without a space at either end. */
+const VERSION_NAME_RE = /^[\x21-\x7e]([\x20-\x7e]{0,254}[\x21-\x7e])?$/;
+const MAX_VERSION_CODE = 0x7fffffff;
 const SCHEME_RE = /^[A-Za-z][A-Za-z0-9+.-]*$/;
 /** A host name, or Android's leading `*` wildcard. */
 const HOST_RE = /^(\*|(\*\.)?[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*)$/;
@@ -66,7 +68,7 @@ export class ManifestError extends Error {}
 
 export interface ManifestFacts {
   package: string;
-  version: { name: Declared<string> | null; code: number | null };
+  version: { name: Declared<string> | null; code: Declared<number> | null };
   interfaces: PackageInterfaces;
 }
 
@@ -74,11 +76,13 @@ function children(element: AxmlElement | undefined, tag: string): AxmlElement[] 
   return element ? element.children.filter((child) => child.name === tag) : [];
 }
 
-function androidAttribute(element: AxmlElement, id: number, name: string): AxmlAttribute | undefined {
-  return (
-    element.attributes.find((a) => a.resourceId === id) ??
-    element.attributes.find((a) => a.resourceId === null && a.ns === ANDROID_NS && a.name === name)
-  );
+/**
+ * A framework attribute, found by its resource id as Android finds it. An
+ * attribute in the android namespace that the resource map does not cover is
+ * invisible to Android, so it is not read.
+ */
+function androidAttribute(element: AxmlElement, id: number): AxmlAttribute | undefined {
+  return element.attributes.find((a) => a.resourceId === id);
 }
 
 const unexpected: Unread = { unread: "unexpected-value" };
@@ -92,24 +96,33 @@ function matching(value: string | null, pattern: RegExp): Declared<string> {
 }
 
 /** A string attribute as declared: the text if it matches `pattern`, `Unread`, or null when absent. */
-function text(element: AxmlElement, id: number, name: string, pattern: RegExp = TOKEN_RE): Declared<string> | null {
-  const attribute = androidAttribute(element, id, name);
+function text(element: AxmlElement, id: number, pattern: RegExp = TOKEN_RE): Declared<string> | null {
+  const attribute = androidAttribute(element, id);
   if (!attribute) return null;
   const value = attribute.value;
   if (value.type === "reference") return reference(value.ref);
   return value.type === "string" ? matching(value.value, pattern) : unexpected;
 }
 
-function flag(element: AxmlElement, id: number, name: string): Declared<boolean> | null {
-  const attribute = androidAttribute(element, id, name);
+function flag(element: AxmlElement, id: number): Declared<boolean> | null {
+  const attribute = androidAttribute(element, id);
   if (!attribute) return null;
   const value = attribute.value;
   if (value.type === "reference") return reference(value.ref);
   return value.type === "boolean" ? value.value : unexpected;
 }
 
+/** `android:versionCode`: a whole number Android accepts, `Unread`, or null when absent. */
+function versionCode(element: AxmlElement): Declared<number> | null {
+  const attribute = androidAttribute(element, ATTR.versionCode);
+  if (!attribute) return null;
+  const value = attribute.value;
+  if (value.type === "reference") return reference(value.ref);
+  return value.type === "int" && value.value <= MAX_VERSION_CODE ? value.value : unexpected;
+}
+
 function className(element: AxmlElement, pkg: string): Declared<string> {
-  const name = text(element, ATTR.name, "name");
+  const name = text(element, ATTR.name);
   if (name === null) return unexpected;
   if (typeof name !== "string") return name;
   const full = name.startsWith(".") ? pkg + name : name.includes(".") ? name : `${pkg}.${name}`;
@@ -140,16 +153,15 @@ interface Filter {
 
 function readFilter(element: AxmlElement): Filter {
   const names = (tag: string): Declared<string>[] =>
-    children(element, tag).flatMap((child) => text(child, ATTR.name, "name") ?? []);
+    children(element, tag).flatMap((child) => text(child, ATTR.name) ?? []);
   const data = children(element, "data");
-  const values = (id: number, name: string, pattern: RegExp): Declared<string>[] =>
-    unique(data.flatMap((d) => text(d, id, name, pattern) ?? []));
+  const values = (id: number, pattern: RegExp): Declared<string>[] => unique(data.flatMap((d) => text(d, id, pattern) ?? []));
   return {
     actions: names("action"),
     categories: names("category"),
-    schemes: values(ATTR.scheme, "scheme", SCHEME_RE),
-    hosts: values(ATTR.host, "host", HOST_RE),
-    mimeTypes: values(ATTR.mimeType, "mimeType", MIME_RE),
+    schemes: values(ATTR.scheme, SCHEME_RE),
+    hosts: values(ATTR.host, HOST_RE),
+    mimeTypes: values(ATTR.mimeType, MIME_RE),
   };
 }
 
@@ -164,9 +176,6 @@ export function readManifest(root: AxmlElement): ManifestFacts {
   const pkg = pkgAttribute?.value.type === "string" ? pkgAttribute.value.value : null;
   if (pkg === null || pkg.length > MAX_TOKEN || !PACKAGE_RE.test(pkg)) throw new ManifestError("manifest has no valid package id");
 
-  const codeAttribute = androidAttribute(root, ATTR.versionCode, "versionCode");
-  const code = codeAttribute?.value.type === "int" ? codeAttribute.value.value : null;
-
   const interfaces: PackageInterfaces = {
     tiles: [],
     taskerPlugin: [],
@@ -174,7 +183,7 @@ export function readManifest(root: AxmlElement): ManifestFacts {
     links: [],
     actions: [],
     shizuku: {
-      permission: children(root, "uses-permission").some((p) => text(p, ATTR.name, "name") === SHIZUKU_PERMISSION),
+      permission: children(root, "uses-permission").some((p) => text(p, ATTR.name) === SHIZUKU_PERMISSION),
       provider: false,
     },
   };
@@ -187,8 +196,9 @@ export function readManifest(root: AxmlElement): ManifestFacts {
       const component: DeclaredComponent = {
         type,
         name: className(element, pkg),
-        exported: flag(element, ATTR.exported, "exported"),
-        permission: text(element, ATTR.permission, "permission"),
+        exported: flag(element, ATTR.exported),
+        enabled: flag(element, ATTR.enabled),
+        permission: text(element, ATTR.permission),
       };
       const filters = children(element, "intent-filter").map(readFilter);
       const actions = filters.flatMap((f) => f.actions);
@@ -222,7 +232,7 @@ export function readManifest(root: AxmlElement): ManifestFacts {
 
   return {
     package: pkg,
-    version: { name: text(root, ATTR.versionName, "versionName"), code },
+    version: { name: text(root, ATTR.versionName, VERSION_NAME_RE), code: versionCode(root) },
     interfaces,
   };
 }

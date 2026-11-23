@@ -412,10 +412,13 @@ test("the store keeps good entries, drops bad ones, and is never saved broken", 
 
   const bad = { ...goodReading(3), evidence: "documented" };
   const html = goodReading(4);
-  html.interfaces.actions.push({ action: "<script>", component: { type: "receiver", name: "a b", exported: null, permission: null } });
+  html.interfaces.actions.push({ action: "<script>", component: { type: "receiver", name: "a b", exported: null, enabled: null, permission: null } });
   const text = `{"format":1,"readings":{"sha256:${sha(2)}":${JSON.stringify(goodReading(2))},"sha256:${sha(3)}":${JSON.stringify(bad)},"sha256:${sha(4)}":${JSON.stringify(html)},"sha256:${sha(9)}":${JSON.stringify(goodReading(5))},"__proto__":${JSON.stringify(goodReading(6))}},"failures":{"github:o/r@v1":{"at":"2026-11-20T00:00:00Z","kind":"http"},"x":{"at":"nope","kind":"http"}}}`;
   writeFileSync(path, text);
   const loaded = loadStore(path);
+  const spaced = goodReading(8);
+  spaced.version = { name: "1.2 beta", code: { unread: "resource-reference", ref: "0x7f0a0001" } };
+  assert.deepEqual(checkStore({ format: 1, readings: { [`sha256:${sha(8)}`]: spaced }, failures: {} }), []);
   assert.equal(loaded.status, "read");
   assert.deepEqual(Object.keys(loaded.store.readings), [`sha256:${sha(2)}`]);
   assert.deepEqual(Object.keys(loaded.store.failures), ["github:o/r@v1"]);

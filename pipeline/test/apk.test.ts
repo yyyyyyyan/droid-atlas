@@ -6,7 +6,7 @@ import { HTTP_LIMITS, HttpReadError, openPackage, packageHost } from "../apk/htt
 import { ManifestError, readManifest } from "../apk/manifest.ts";
 import { PackageReadError, readPackage } from "../apk/read.ts";
 import { findEntry, readDirectory, readEntry, type RangeSource, ZipError } from "../apk/zip.ts";
-import { buildZip, el, encodeAxml, pooledAxml, rangeServer, utf16Data, type FakeElement, type ZipFile } from "./apk-fixtures.ts";
+import { buildZip, el, encodeAxml, pooledAxml, rangeServer, utf16Data, type FakeElement, type FakeValue, type ZipFile } from "./apk-fixtures.ts";
 
 const PKG = "org.example.tiles";
 const FDROID = "https://f-droid.org/repo/org.example.tiles_7.apk";
@@ -98,7 +98,7 @@ test("the manifest's interfaces are read with exported and permission as declare
   assert.deepEqual(facts.version, { name: "1.0", code: 7 });
   const i = facts.interfaces;
   assert.deepEqual(i.tiles, [
-    { type: "service", name: `${PKG}.WifiTile`, exported: true, permission: "android.permission.BIND_QUICK_SETTINGS_TILE" },
+    { type: "service", name: `${PKG}.WifiTile`, exported: true, enabled: null, permission: "android.permission.BIND_QUICK_SETTINGS_TILE" },
   ]);
   assert.deepEqual(
     i.taskerPlugin.map((t) => [t.role, t.component.name, t.component.type]),
@@ -116,7 +116,7 @@ test("the manifest's interfaces are read with exported and permission as declare
   );
   assert.deepEqual(i.links, [
     {
-      component: { type: "activity", name: `${PKG}.LinkActivity`, exported: true, permission: null },
+      component: { type: "activity", name: `${PKG}.LinkActivity`, exported: true, enabled: null, permission: null },
       schemes: ["https", "tiles"],
       hosts: ["example.org", { unread: "resource-reference", ref: "0x7f130005" }],
       browsable: true,
@@ -125,7 +125,7 @@ test("the manifest's interfaces are read with exported and permission as declare
   assert.deepEqual(i.actions, [
     {
       action: "org.example.tiles.action.TOGGLE",
-      component: { type: "receiver", name: `${PKG}.ApiReceiver`, exported: null, permission: "org.example.tiles.permission.API" },
+      component: { type: "receiver", name: `${PKG}.ApiReceiver`, exported: null, enabled: null, permission: "org.example.tiles.permission.API" },
     },
   ]);
   assert.deepEqual(i.shizuku, { permission: true, provider: true });
@@ -136,7 +136,10 @@ test("a value that is a resource reference is recorded as not read, never guesse
     el("application", {}, [el("receiver", { name: ".R", exported: { ref: 0x7f050001 } }, [filter(["org.example.GO"])])]),
   ]);
   const facts = readManifest(parseAxml(encodeAxml(manifest)));
-  assert.deepEqual(facts.version, { name: { unread: "resource-reference", ref: "0x7f140001" }, code: null });
+  assert.deepEqual(facts.version, {
+    name: { unread: "resource-reference", ref: "0x7f140001" },
+    code: { unread: "resource-reference", ref: "0x7f0a0001" },
+  });
   assert.deepEqual(facts.interfaces.actions[0]?.component.exported, { unread: "resource-reference", ref: "0x7f050001" });
 });
 
@@ -155,6 +158,42 @@ test("action names that are also names of object properties are not taken for Ta
   assert.equal(facts.interfaces.actions.length, 4);
 });
 
+test("values are read as Android reads them: enabled, versionName with spaces, versionCode's range, dynamic references, no unmapped attributes", () => {
+  const manifest = (version: Record<string, FakeValue>): FakeElement =>
+    el("manifest", { "@package": PKG, ...version }, [
+      el("application", {}, [
+        el("service", { name: ".Off", exported: true, enabled: false }, [filter(["android.service.quicksettings.action.QS_TILE"])]),
+        el("service", { name: ".Dynamic", exported: { dynamicRef: 0x7f050002 }, enabled: { ref: 0x7f050003 } }, [
+          filter(["android.service.quicksettings.action.QS_TILE"]),
+        ]),
+        el("receiver", { name: ".Unmapped", "!exported": true, "!permission": "org.example.P" }, [filter(["org.example.GO"])]),
+      ]),
+    ]);
+  const facts = readManifest(parseAxml(encodeAxml(manifest({ versionName: "1.2 beta", versionCode: 7 }))));
+  assert.deepEqual(facts.version, { name: "1.2 beta", code: 7 });
+  assert.deepEqual(
+    facts.interfaces.tiles.map((t) => [t.exported, t.enabled]),
+    [
+      [true, false],
+      [
+        { unread: "resource-reference", ref: "0x7f050002" },
+        { unread: "resource-reference", ref: "0x7f050003" },
+      ],
+    ],
+  );
+  assert.deepEqual(facts.interfaces.actions[0]?.component, {
+    type: "receiver",
+    name: `${PKG}.Unmapped`,
+    exported: null,
+    enabled: null,
+    permission: null,
+  });
+  const negative = readManifest(parseAxml(encodeAxml(manifest({ versionName: "bad\u0001name", versionCode: -1 }))));
+  assert.deepEqual(negative.version, { name: { unread: "unexpected-value" }, code: { unread: "unexpected-value" } });
+  const tooLong = readManifest(parseAxml(encodeAxml(manifest({ versionName: "1".repeat(300) }))));
+  assert.deepEqual(tooLong.version.name, { unread: "unexpected-value" });
+});
+
 test("values with unexpected text or types are not kept", () => {
   const manifest = el("manifest", { "@package": PKG }, [
     el("application", {}, [
@@ -170,7 +209,7 @@ test("values with unexpected text or types are not kept", () => {
   assert.deepEqual(link?.schemes, [{ unread: "unexpected-value" }, "ok"]);
   assert.deepEqual(facts.interfaces.actions[0], {
     action: { unread: "unexpected-value" },
-    component: { type: "receiver", name: { unread: "unexpected-value" }, exported: null, permission: null },
+    component: { type: "receiver", name: { unread: "unexpected-value" }, exported: null, enabled: null, permission: null },
   });
 });
 
