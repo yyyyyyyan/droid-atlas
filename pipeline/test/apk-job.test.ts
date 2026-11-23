@@ -604,3 +604,24 @@ test("the command prints nothing derived from its input when a stage fails", asy
   assert.equal(await main(good, ok), 0);
   assert.ok(!ok.lines.join("\n").includes(mark));
 });
+
+test("a release with no APK the rule accepts is not looked up again for a week, and takes no cap slot meanwhile", async () => {
+  const apps = [app({ id: "a", github: { slug: "o/r", tag: "v1" } }), app({ id: "b", github: { slug: "o/s", tag: "v1" } })];
+  const looked: string[] = [];
+  const x86Only = (async (input: string | URL | Request) => {
+    looked.push(new URL(String(input)).pathname);
+    return new Response(JSON.stringify(release([{ name: "app-x86.apk", size: 10, url: "https://github.com/o/r/releases/download/v1/app-x86.apk" }])), {
+      status: 200,
+    });
+  }) as typeof fetch;
+  const store = emptyStore();
+  const day = (n: number): Clock => fakeClock(Date.parse("2026-11-23T08:00:00Z") + n * 86_400_000);
+  const first = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, store, options({ cap: 1, fetch: x86Only, clock: day(0) }));
+  assert.equal(first.skipped["no-apk-by-rule"], 1);
+  assert.deepEqual(store.failures["github:o/r@v1"]?.kind, "no-apk");
+  const second = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, store, options({ cap: 1, fetch: x86Only, clock: day(1) }));
+  assert.equal(second.skipped["no-apk-by-rule"], 2, "one remembered, one looked up today");
+  assert.equal(second.skipped["over-cap"], 0);
+  assert.deepEqual(looked, ["/repos/o/r/releases/latest", "/repos/o/s/releases/latest"]);
+  assert.equal(Object.values(second.failed).reduce((a, b) => a + b, 0), 0, "not counted as a failure");
+});

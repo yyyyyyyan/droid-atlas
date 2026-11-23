@@ -17,10 +17,13 @@ export const STORE_FORMAT = 1;
 /** Why a package was not read. "not-stored": it was read, but the reading or its record failed the check of the store. */
 export type FailureKind = "address" | "http" | "zip" | "manifest" | "unexpected" | "release-lookup" | "not-stored";
 
+/** What a record in `failures` holds: a failure, or "no-apk", a release with no APK the rule accepts. */
+export type RecordKind = FailureKind | "no-apk";
+
 export interface StoreFailure {
-  /** ISO time of the failed attempt. */
+  /** ISO time of the attempt. */
   at: string;
-  kind: FailureKind;
+  kind: RecordKind;
 }
 
 export interface ReadingStore {
@@ -48,7 +51,7 @@ const PRINTABLE_RE = /^[\x21-\x7e]{1,512}$/;
 const VERSION_NAME_RE = /^[\x21-\x7e]([\x20-\x7e]{0,254}[\x21-\x7e])?$/;
 const COMPONENT_TYPES = new Set(["activity", "activity-alias", "service", "receiver"]);
 const TASKER_ROLES = new Set(["action-edit", "action-fire", "condition-edit", "condition-query", "event-edit"]);
-const FAILURE_KINDS = new Set<string>(["address", "http", "zip", "manifest", "unexpected", "release-lookup", "not-stored"]);
+const FAILURE_KINDS = new Set<string>(["address", "http", "zip", "manifest", "unexpected", "release-lookup", "not-stored", "no-apk"]);
 const READING_KEY_RE = /^(sha256:[0-9a-f]{64}|asset:https:\/\/[\x21-\x7e]+)$/;
 const WORK_KEY_RE = /^(sha256:[0-9a-f]{64}|asset:https:\/\/[\x21-\x7e]+|github:[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+@[\x21-\x7e]+)$/;
 

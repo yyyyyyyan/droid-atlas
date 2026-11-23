@@ -19,7 +19,7 @@ import { latestFiles } from "../enrich/index-v2.ts";
 import { chooseApk, type ReleaseAsset } from "./choose.ts";
 import { Pacer, type Clock } from "./pace.ts";
 import { PackageReadError, readPackage } from "./read.ts";
-import { dropInvalid, readingKey, readingProblems, type FailureKind, type ReadingStore } from "./store.ts";
+import { dropInvalid, readingKey, readingProblems, type FailureKind, type ReadingStore, type RecordKind } from "./store.ts";
 
 export type SkipRule =
   | "not-an-app"
@@ -142,9 +142,10 @@ export function ownerOf(reading: PackageReading): string {
   return `${reading.source.host}:${reading.package}`;
 }
 
-function failedRecently(store: ReadingStore, key: string, now: number, retryAfterMs: number): boolean {
+/** The kind of a record of `key` made within `retryAfterMs`, or null. */
+function recentRecord(store: ReadingStore, key: string, now: number, retryAfterMs: number): RecordKind | null {
   const failure = store.failures[key];
-  return failure !== undefined && now - Date.parse(failure.at) < retryAfterMs;
+  return failure !== undefined && now - Date.parse(failure.at) < retryAfterMs ? failure.kind : null;
 }
 
 function githubSlug(app: App): string | null {
@@ -185,7 +186,7 @@ export function plan(input: JobInput, store: ReadingStore, options: Pick<JobOpti
     const key = readingKey({ sha256: file.sha256, url: "", size: 0 });
     current.add(key);
     if (store.readings[key]) skipped["already-read"]++;
-    else if (failedRecently(store, key, now, options.retryAfterMs)) skipped["failed-recently"]++;
+    else if (recentRecord(store, key, now, options.retryAfterMs)) skipped["failed-recently"]++;
     else candidates.push({ lane, app: app.id, owner, workKey: key, url: `${lane === "fdroid" ? FDROID_REPO : IZZY_REPO}${file.name}`, sha256: file.sha256 });
   };
 
@@ -214,7 +215,9 @@ export function plan(input: JobInput, store: ReadingStore, options: Pick<JobOpti
       if (done) {
         current.add(done);
         skipped["already-read"]++;
-      } else if (failedRecently(store, workKey, now, options.retryAfterMs)) {
+      } else if (recentRecord(store, workKey, now, options.retryAfterMs) === "no-apk") {
+        skipped["no-apk-by-rule"]++;
+      } else if (recentRecord(store, workKey, now, options.retryAfterMs)) {
         skipped["failed-recently"]++;
       } else {
         candidates.push({ lane: "github", app: app.id, owner, workKey, slug });
@@ -362,6 +365,7 @@ export async function runJob(input: JobInput, store: ReadingStore, options: JobO
     }
     const chosen = chooseApk(assets);
     if (!chosen) {
+      store.failures[item.workKey] = { at: at(), kind: "no-apk" };
       skipped["no-apk-by-rule"]++;
       return;
     }
