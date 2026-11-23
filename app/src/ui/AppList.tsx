@@ -17,7 +17,7 @@
 import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { sharedChipKeys, sortNote } from "../catalog/facts.ts";
+import { sharedChipKeys, sortNote, type Chip } from "../catalog/facts.ts";
 import {
   GROUPS,
   antiFeatureNote,
@@ -91,6 +91,8 @@ interface Props {
   quiet?: boolean;
   /** Replaces the category on a row's last line where it returns text (the reader's note on a saved app). */
   metaOf?(entry: Entry): string | undefined;
+  /** Chips a row names before any other, where it returns some (Saved's marks). Return the same array for an unchanged entry: rows skip a render on equal props. */
+  marksOf?(entry: Entry): readonly Chip[] | undefined;
   /** Shown instead of the rows when the scope itself is empty. */
   whenEmpty?: ComponentChildren;
   /** Shown between the bar and the rows; scrolls away with them. */
@@ -129,7 +131,7 @@ function sortApplies(sort: SortId, scope: readonly Entry[]): boolean {
 }
 
 export function AppList({
-  scope, natural, implied = [], within, hiddenGroups = [], mixed = false, noun = "entry", nounPlural = "entries", label, stripStart, quiet = false, metaOf, whenEmpty, children,
+  scope, natural, implied = [], within, hiddenGroups = [], mixed = false, noun = "entry", nounPlural = "entries", label, stripStart, quiet = false, metaOf, marksOf, whenEmpty, children,
 }: Props) {
   const { navigation, vocabulary, settings, model } = useServices();
   const route = navigation.value.route;
@@ -390,6 +392,7 @@ export function AppList({
                 selected={entry.app.id === selectedId}
                 sort={current.measure ? sort : undefined}
                 meta={metaOf?.(entry)}
+                marks={marksOf?.(entry)}
                 search={query.text.trim() || undefined}
                 words={words}
               />

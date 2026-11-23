@@ -100,6 +100,8 @@ interface RowProps {
   sort?: SortId;
   /** Replaces the category name on a mixed row's last line. */
   meta?: string;
+  /** Chips the page names on this row before any other, whatever room they take (Saved's marks). */
+  marks?: readonly Chip[];
   /** Follows the category on the last line, after a separator, when there is room for all of it (Explore says when each new entry arrived). */
   when?: string;
   /** Where a search matched, when the name and summary do not show it. */
@@ -177,14 +179,16 @@ function MatchLine({ match, words }: { match: MatchReason; words: readonly strin
   );
 }
 
-function AppRow({ entry, index, total, density, mixed, hidden, selected, sort, meta, when, search, words }: RowProps) {
+function AppRow({ entry, index, total, density, mixed, hidden, selected, sort, meta, marks, when, search, words }: RowProps) {
   const { model } = useServices();
   const { app } = entry;
   const compact = density === "compact";
   const summary = app.summary?.value ?? rowFallback(entry);
   const place = meta ?? (mixed && entry.category ? entry.category.name : null);
   const line = rowLine(listWidth.value, isWide.value);
-  const chips = compact ? compactTags(model, entry, hidden, 3, line + COMPACT_EXTRA) : rowChips(model, entry, hidden, line - (place ? metaWidth(place) : 0), line - (place ? META_FLOOR : 0));
+  const chips = compact
+    ? compactTags(model, entry, hidden, 3, line + COMPACT_EXTRA, marks)
+    : rowChips(model, entry, hidden, line - (place ? metaWidth(place) : 0), line - (place ? META_FLOOR : 0), marks);
   const measure = sort ? rowMeasure(model, entry, sort) : null;
   const longName = !compact && nameWidth(app.name) > line - (measure ? measureWidth(measure) : 0);
   /* Between the name and the last line a comfortable row has two lines, or one under a name that takes two. Where a search matched takes one, when the summary in all of them would not show the words, and the summary gets what is left. */

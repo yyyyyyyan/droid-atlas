@@ -16,6 +16,7 @@ import {
   rowChips,
   rowLine,
   rowMeasure,
+  savedMarks,
   sharedChipKeys,
   sortNote,
   summaryShown,
@@ -547,6 +548,49 @@ describe("facts", () => {
     expect([...sharedChipKeys(closed, closed.entries)]).toEqual(["shizuku"]);
     expect([...sharedChipKeys(all, all.entries.slice(0, 1))]).toEqual([]);
     expect([...sharedChipKeys(model, model.entries)]).toEqual([]);
+  });
+
+  test("Saved marks an archived app in the words every row uses, and a release later than both the last visit and the save", () => {
+    const archived = { ...lawnchair, app: { ...lawnchair.app, facets: { ...lawnchair.app.facets, archived: true } } };
+    const lastVisit = Date.parse("2026-11-01T00:00:00Z");
+    expect(savedMarks(model, archived, 0, null).map((chip) => [chip.key, chip.text, chip.tone])).toEqual([["archived", "Archived", "caution"]]);
+    expect(savedMarks(model, archived, 0, lastVisit).map((chip) => chip.text)).toEqual(["Archived", "Released Nov 5"]);
+    expect(savedMarks(model, lawnchair, 0, lastVisit)).toEqual([
+      { key: "released", text: "Released Nov 5", tone: "neutral", title: "Latest release Nov 5, 2026, on GitHub" },
+    ]);
+    expect(savedMarks(model, lawnchair, Date.parse("2026-11-06T00:00:00Z"), lastVisit)).toEqual([]);
+    expect(savedMarks(model, lawnchair, 0, Date.parse("2026-11-05T00:00:00Z"))).toEqual([]);
+    expect(savedMarks(model, mystery, 0, lastVisit)).toEqual([]);
+    const unstated = { ...lawnchair, app: { ...lawnchair.app, facets: { ...lawnchair.app.facets, archived: null } } };
+    expect(savedMarks(model, unstated, 0, Date.parse("2026-11-06T00:00:00Z"))).toEqual([]);
+  });
+
+  test("a release mark from another year says the month and year, as every short date does", () => {
+    const lastYear = buildModel(catalog({ apps: APPS }), Date.parse("2027-01-03T00:00:00Z"));
+    const entry = lastYear.byId.get("launcher-one") as Entry;
+    expect(savedMarks(lastYear, entry, 0, Date.parse("2026-11-01T00:00:00Z")).map((chip) => chip.text)).toEqual(["Released Nov 2026"]);
+  });
+
+  test("a pinned mark is named first on a row of any width, and the other chips share what room is left", () => {
+    const archived = { ...hail, releasedAt: lawnchair.releasedAt, releaseOrigin: lawnchair.releaseOrigin, app: { ...hail.app, facets: { ...hail.app.facets, archived: true } } };
+    const marks = savedMarks(model, archived, 0, Date.parse("2026-01-01T00:00:00Z"));
+    const long = "Note: compare with the one on the old phone before moving";
+    for (const width of [320, 384, 1280]) {
+      const chips = rowChips(model, archived, none, rowLine(width) - metaWidth(long), rowLine(width) - META_FLOOR, marks);
+      expect(texts(chips.slice(0, 2))).toEqual(["Archived", "Released Nov 5"]);
+      expect(chips.filter((chip) => chip.key === "archived")).toHaveLength(1);
+      expect(chips[2]?.text).toMatch(/^Closed source|cautions$/);
+    }
+    expect(texts(rowChips(model, archived, none, 40, 60, marks))).toEqual(["Archived", "Released Nov 5", "3 cautions"]);
+    expect(rowChips(model, hail, none, 40, 60, [])).toEqual(rowChips(model, hail, none, 40, 60));
+  });
+
+  test("a compact row names its pinned marks first, whatever room they take, and counts them in its three labels", () => {
+    const archived = { ...hail, releasedAt: lawnchair.releasedAt, releaseOrigin: lawnchair.releaseOrigin, app: { ...hail.app, facets: { ...hail.app.facets, archived: true } } };
+    const marks = savedMarks(model, archived, 0, Date.parse("2026-01-01T00:00:00Z"));
+    expect(texts(compactTags(model, archived, none, 3, Number.POSITIVE_INFINITY, marks))).toEqual(["Archived", "Released Nov 5", "Closed source"]);
+    expect(texts(compactTags(model, archived, none, 3, 10, marks))).toEqual(["Archived", "Released Nov 5"]);
+    expect(texts(compactTags(model, archived, none))).not.toContain("Archived");
   });
 
   test("a compact row carries at most three worded labels: cautions, then access, then where to get it", () => {

@@ -15,6 +15,7 @@ import type { PinsData } from "./state/pins.ts";
 import type { Saved } from "./state/saved.ts";
 import type { Settings } from "./state/settings.ts";
 import type { Store } from "./state/storage.ts";
+import type { LastVisit } from "./state/visit.ts";
 
 export interface Services {
   model: Model;
@@ -25,6 +26,8 @@ export interface Services {
   router: Router;
   navigation: ReadonlySignal<Navigation>;
   saved: Saved;
+  /** The date Saved was last opened, which its release marks are measured from. */
+  visit: LastVisit;
   pins: Store<PinsData>;
   settings: Store<Settings>;
   /** Android or not: what an outbound link's note says, and whether Obtainium can be the primary action. */

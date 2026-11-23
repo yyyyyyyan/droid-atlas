@@ -119,6 +119,32 @@ export function termChips(entry: Entry): Chip[] {
   return chips;
 }
 
+/** An entry's latest release in full, with who states it: "Latest release Nov 18, 2026, in F-Droid". */
+function releaseLabel(model: Model, at: number, from: Origin | null): string {
+  const origin = from ? originName(model, from) : null;
+  return `Latest release ${formatDate(at)}${origin ? `, ${origin === "GitHub" ? "on" : "in"} ${origin}` : ""}`;
+}
+
+/**
+ * The marks a saved app carries on Saved, named on its row before any other
+ * chip. "Archived" for as long as a source states the project is archived.
+ * The day of its latest release when that release is later than both `since`,
+ * the date Saved was last opened from, and `savedAt`; with no `since` (the
+ * first visit, or a browser that keeps no data) there is no release mark.
+ *
+ * Releases are compared as the instants the catalog gives. An index that
+ * states only the day gives that day's first moment, so such a release is
+ * marked only when the whole day is later than `since`.
+ */
+export function savedMarks(model: Model, entry: Entry, savedAt: number, since: number | null): Chip[] {
+  const marks = termChips(entry).filter((chip) => chip.key === "archived");
+  const released = entry.releasedAt;
+  if (since !== null && released !== null && released > since && released > savedAt) {
+    marks.push({ key: "released", text: `Released ${shortDate(released, model.now)}`, tone: "neutral", title: releaseLabel(model, released, entry.releaseOrigin) });
+  }
+  return marks;
+}
+
 function optionalChips(model: Model, entry: Entry): Chip[] {
   const { facets } = entry.app;
   const chips: Chip[] = [];
@@ -273,14 +299,29 @@ export function measureWidth(measure: Measure): number {
  * in a chip that says how many there are. A row therefore never looks
  * cleaner than the entry is, and no chip is cut at the row's edge.
  *
+ * Marks a page pins (`pinned`) come first, by name, whatever room they take;
+ * the other chips share what is left, and none of them repeats a pinned one.
+ *
  * @param hidden chip keys the page, an active filter or the whole list already states; a caution is shown regardless
  * @param most the width one chip may take when it is the first caution: the line less what the category's name must keep
  */
-export function rowChips(model: Model, entry: Entry, hidden: ReadonlySet<string>, room: number = LINE_WIDTH, most: number = Math.max(room, 0)): Chip[] {
+export function rowChips(model: Model, entry: Entry, hidden: ReadonlySet<string>, room: number = LINE_WIDTH, most: number = Math.max(room, 0), pinned: readonly Chip[] = []): Chip[] {
+  if (pinned.length === 0) return fitChips(allChips(model, entry), hidden, room, most);
+  const keys = new Set(pinned.map((chip) => chip.key));
+  const taken = chipsWidth(pinned) + CHIP_GAP;
+  return [...pinned, ...fitChips(allChips(model, entry).filter((chip) => !keys.has(chip.key)), hidden, room - taken, most - taken)];
+}
+
+/** What chips take of a line set side by side. */
+function chipsWidth(chips: readonly Chip[]): number {
+  return chips.reduce((sum, chip, index) => sum + chipWidth(chip) + (index > 0 ? CHIP_GAP : 0), 0);
+}
+
+function fitChips(chips: readonly Chip[], hidden: ReadonlySet<string>, room: number, most: number): Chip[] {
   const kept: Chip[] = [];
   const left: Chip[] = [];
   let free = room;
-  for (const chip of allChips(model, entry)) {
+  for (const chip of chips) {
     const gap = kept.length > 0 ? CHIP_GAP : 0;
     const caution = chip.tone === "alert" || chip.tone === "caution";
     if (hidden.has(chip.key) && !caution) continue;
@@ -302,7 +343,7 @@ export function rowChips(model: Model, entry: Entry, hidden: ReadonlySet<string>
   const counted = last ? /^(.+) \+(\d+)$/.exec(last.text) : null;
   const more: Chip = { key: "more", text: `+${left.length}`, tone: "caution", title: also };
   const allowed = Math.max(room, most);
-  const taken = kept.reduce((sum, chip, index) => sum + chipWidth(chip) + (index > 0 ? CHIP_GAP : 0), 0);
+  const taken = chipsWidth(kept);
   /* A chip that already ends in a count takes the ones left out into it: two counts side by side read as a mistake. */
   if (last && counted) kept[kept.length - 1] = { ...last, text: `${counted[1]} +${Number(counted[2]) + left.length}`, title: [last.title, also].filter(Boolean).join(". ") };
   else if (last && taken + CHIP_GAP + chipWidth(more) <= allowed) kept.push(more);
@@ -342,14 +383,20 @@ const STORE_TAGS: { key: string; text: string; title: string; test(entry: Entry)
  * cautions, then what the app works with, then where to get it. Nothing is
  * shown for what no source states.
  *
+ * Marks a page pins (`pinned`) come first and count towards `limit`, but are
+ * never left out.
+ *
  * @param room the width of the row's line; labels that would run past it are left out, the first never
  */
-export function compactTags(model: Model, entry: Entry, hidden: ReadonlySet<string>, limit = 3, room = Number.POSITIVE_INFINITY): Chip[] {
+export function compactTags(model: Model, entry: Entry, hidden: ReadonlySet<string>, limit = 3, room = Number.POSITIVE_INFINITY, pinned: readonly Chip[] = []): Chip[] {
   const stores: Chip[] = STORE_TAGS.filter((tag) => tag.test(entry)).map((tag) => ({ key: tag.key, text: tag.text, tone: "neutral" }));
   const isCaution = (chip: Chip): boolean => chip.tone === "alert" || chip.tone === "caution";
-  const wanted = [...allChips(model, entry), ...stores].filter((chip) => isCaution(chip) || !hidden.has(chip.key)).slice(0, limit);
-  const kept: Chip[] = [];
-  let free = room;
+  const keys = new Set(pinned.map((chip) => chip.key));
+  const wanted = [...allChips(model, entry), ...stores]
+    .filter((chip) => !keys.has(chip.key) && (isCaution(chip) || !hidden.has(chip.key)))
+    .slice(0, Math.max(0, limit - pinned.length));
+  const kept: Chip[] = [...pinned];
+  let free = room - pinned.reduce((sum, chip, index) => sum + chipWidth(chip) + (index > 0 ? COMPACT_GAP : 0), 0);
   for (const chip of wanted) {
     const width = chipWidth(chip) + (kept.length > 0 ? COMPACT_GAP : 0);
     if (width > free && kept.length > 0) break;
@@ -385,8 +432,7 @@ export function rowMeasure(model: Model, entry: Entry, sort: SortId): Measure | 
   }
   if (sort === "release") {
     if (entry.releasedAt === null) return null;
-    const origin = entry.releaseOrigin ? originName(model, entry.releaseOrigin) : null;
-    return { kind: "release", text: timeAgo(entry.releasedAt, model.now), label: `Latest release ${formatDate(entry.releasedAt)}${origin ? `, ${origin === "GitHub" ? "on" : "in"} ${origin}` : ""}` };
+    return { kind: "release", text: timeAgo(entry.releasedAt, model.now), label: releaseLabel(model, entry.releasedAt, entry.releaseOrigin) };
   }
   if (sort === "added") {
     if (entry.addedAt === null) return null;

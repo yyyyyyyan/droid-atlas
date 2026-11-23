@@ -158,6 +158,8 @@ export interface SavedView {
   ids: Set<string>;
   /** The reader's note per saved entry id, for the entries that have one. */
   notes: Map<string, string>;
+  /** When each saved entry was saved, by entry id. */
+  savedAt: Map<string, number>;
   /** Saved items whose app has left every catalog. */
   missing: SavedItem[];
   /** Saved items found under another id than the one they were saved with: the catalog renamed or merged them. */
@@ -183,6 +185,7 @@ export function createSaved(model: Model, store: Store<SavedData>): Saved {
     const entries: Entry[] = [];
     const ids = new Set<string>();
     const notes = new Map<string, string>();
+    const savedAt = new Map<string, number>();
     const missing: SavedItem[] = [];
     const moved: { from: string; entry: Entry }[] = [];
     for (const item of active) {
@@ -196,9 +199,10 @@ export function createSaved(model: Model, store: Store<SavedData>): Saved {
       if (!ids.has(entry.app.id)) {
         ids.add(entry.app.id);
         entries.push(entry);
+        savedAt.set(entry.app.id, item.savedAt);
       }
     }
-    return { entries, ids, notes, missing, moved };
+    return { entries, ids, notes, savedAt, missing, moved };
   });
 
   const matches = (entry: Entry) => (item: SavedItem): boolean => resolveSaved(model, item) === entry;

@@ -164,6 +164,16 @@ describe("saved apps", () => {
     expect(saved.has("beta")).toBe(false);
   });
 
+  test("the list knows when each entry was saved, the latest save when it was saved again", () => {
+    const model = modelWith("alpha", "beta");
+    const saved = createSaved(model, createSavedStore(new MemoryStorage()));
+    saved.toggle(entry(model, "alpha"), 100);
+    saved.toggle(entry(model, "beta"), 200);
+    saved.toggle(entry(model, "alpha"), 300);
+    saved.toggle(entry(model, "alpha"), 400);
+    expect([...saved.view.value.savedAt]).toEqual([["alpha", 400], ["beta", 200]]);
+  });
+
   test("removal is a timestamp, and saving again revives the entry", () => {
     const model = modelWith("alpha");
     const store = createSavedStore(new MemoryStorage());

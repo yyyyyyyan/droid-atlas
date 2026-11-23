@@ -13,6 +13,7 @@ import { CatalogError, createOnDemand, sha256 } from "./catalog/load.ts";
 import { buildModel } from "./catalog/model.ts";
 import { loadCatalog } from "./catalog/source.ts";
 import { isFramed, platformOf } from "./links.ts";
+import { parseTime } from "./lib/format.ts";
 import { QUIET_MS, quietLimited } from "./lib/quiet.ts";
 import { afterLaunch, launchedFromNetwork, prepareLaunch, storedFetch, takeOverIfWaiting } from "./offline/client.ts";
 import { watchInstall } from "./state/install.ts";
@@ -25,6 +26,7 @@ import { createPinsStore } from "./state/pins.ts";
 import { createSaved, createSavedStore } from "./state/saved.ts";
 import { applySettings, createSettingsStore } from "./state/settings.ts";
 import { listenForStorageChanges } from "./state/storage.ts";
+import { createLastVisit, createVisitStore } from "./state/visit.ts";
 import { Mark } from "./ui/Icon.tsx";
 import { captureScroll } from "./ui/scroll.ts";
 import "./styles/index.css";
@@ -32,6 +34,7 @@ import "./styles/index.css";
 const settings = createSettingsStore();
 const pins = createPinsStore();
 const savedStore = createSavedStore();
+const visit = createLastVisit(createVisitStore());
 applySettings(settings);
 listenForStorageChanges();
 watchInstall();
@@ -58,8 +61,16 @@ async function start(): Promise<Services> {
   const vocabulary = buildVocabulary(model);
   performance.measure("atlas:model-build", "atlas:catalog-loaded");
   const router = new Router(browserEnv(catalogPlaces(model, vocabulary), captureScroll, settings.value.peek().resume));
-  const navigation = signal<Navigation>(router.start());
+  /* Saved's marks are measured against the catalog on screen: a release the next catalog brings was not in this one, however late the visit. */
+  const catalogTime = parseTime(model.catalog.generatedAt);
+  const noteVisit = (next: Navigation): void => {
+    if (catalogTime !== null && placeOf(next.route).kind === "saved") visit.open(catalogTime);
+  };
+  const first = router.start();
+  noteVisit(first);
+  const navigation = signal<Navigation>(first);
   router.subscribe((next) => {
+    noteVisit(next);
     navigation.value = next;
   });
   return {
@@ -70,6 +81,7 @@ async function start(): Promise<Services> {
     router,
     navigation,
     saved: createSaved(model, savedStore),
+    visit,
     pins,
     settings,
     platform: platformOf(),
