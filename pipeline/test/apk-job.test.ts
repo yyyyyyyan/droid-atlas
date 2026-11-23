@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -9,6 +9,7 @@ import { chooseApk, type ReleaseAsset } from "../apk/choose.ts";
 import { main, type CliDeps } from "../apk/cli.ts";
 import { FAILURE_KINDS, JOB_DEFAULTS, plan, runJob, SKIP_RULES, summary, type JobCounts, type JobOptions } from "../apk/job.ts";
 import { Pacer, type Clock } from "../apk/pace.ts";
+import { latestFiles } from "../enrich/index-v2.ts";
 import { checkStore, emptyStore, loadStore, saveStore, type ReadingStore } from "../apk/store.ts";
 import { buildZip, el, encodeAxml, rangeServer } from "./apk-fixtures.ts";
 
@@ -251,11 +252,9 @@ test("both switches are off by default, and unknown or closed openness is skippe
   );
   assert.deepEqual(
     switched.work.map((w) => [w.app, w.lane]),
-    [
-      ["b-unknown", "github"],
-      ["d-izzy", "izzy"],
-    ],
+    [["b-unknown", "github"]],
   );
+  assert.equal(switched.skipped["izzy-no-host"], 1, "the switch alone reads nothing: the reader has no IzzyOnDroid host rule");
 });
 
 test("a run reads up to the cap, paced per host, and records every reading by its file's hash", async () => {
@@ -651,4 +650,78 @@ test("a temporary GitHub API error stops the GitHub lane for the run and records
   const notFound = (async () => new Response("{}", { status: 404 })) as typeof fetch;
   const counts = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, gone, options({ fetch: notFound, clock: fakeClock() }));
   assert.equal(counts.failed["release-lookup"], 3, "a release that is not there is recorded");
+});
+
+test("the store is written through a file beside its directory, never a partial file inside it", () => {
+  const dir = mkdtempSync(join(tmpdir(), "readings-"));
+  const cached = join(dir, ".package-readings");
+  mkdirSync(cached);
+  saveStore(join(cached, "readings.json"), emptyStore());
+  assert.deepEqual(readdirSync(cached), ["readings.json"]);
+  assert.deepEqual(readdirSync(dir).sort(), [".package-readings"]);
+});
+
+test("a repository slug with a dot segment is not read", () => {
+  const apps = ["../r", "o/..", "./r", "o/."].map((slug, i) => app({ id: `s${i}`, github: { slug, tag: "v1" } }));
+  const result = plan({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, emptyStore(), JOB_DEFAULTS, 0);
+  assert.deepEqual(result.work, []);
+  assert.equal(result.skipped["no-package"], 4);
+});
+
+test("latestFiles leaves out a package whose latest file has a bad name, a bad hash or no size", () => {
+  const entry = (file: Record<string, unknown>) => ({ versions: { v: { added: 1, file, manifest: { versionCode: 1 } } } });
+  const json = {
+    packages: {
+      "org.example.good": entry({ name: "/org.example.good_1.apk", sha256: sha(1), size: 10 }),
+      "org.example.path": entry({ name: "/../org.example.path_1.apk", sha256: sha(1), size: 10 }),
+      "org.example.noslash": entry({ name: "org.example.noslash_1.apk", sha256: sha(1), size: 10 }),
+      "org.example.upper": entry({ name: "/org.example.upper_1.apk", sha256: sha(1).toUpperCase().replace(/0/g, "A"), size: 10 }),
+      "org.example.short": entry({ name: "/org.example.short_1.apk", sha256: "ab", size: 10 }),
+      "org.example.nosize": entry({ name: "/org.example.nosize_1.apk", sha256: sha(1) }),
+      "org.example.zero": entry({ name: "/org.example.zero_1.apk", sha256: sha(1), size: 0 }),
+    },
+  };
+  const files = latestFiles(json, Object.keys(json.packages).concat("org.example.absent", "constructor"));
+  assert.deepEqual([...files.keys()], ["org.example.good"]);
+});
+
+test("with the IzzyOnDroid switch on, an IzzyOnDroid package is skipped by its own rule and takes no cap slot", () => {
+  const apps = [app({ id: "a-izzy", izzy: "org.example.izzy" }), app({ id: "b-fdroid", fdroid: "org.example.fdroid" })];
+  const input = {
+    catalog: catalog(apps),
+    fdroidIndex: index({ "org.example.fdroid": { code: 2, sha256: sha(70) } }),
+    izzyIndex: index({ "org.example.izzy": { code: 2, sha256: sha(71) } }),
+  };
+  const on = plan(input, emptyStore(), { ...JOB_DEFAULTS, izzy: true, cap: 1 }, 0);
+  assert.equal(on.skipped["izzy-no-host"], 1);
+  assert.equal(on.skipped["over-cap"], 0);
+  assert.deepEqual(
+    on.work.map((w) => w.app),
+    ["b-fdroid"],
+  );
+  const off = plan(input, emptyStore(), JOB_DEFAULTS, 0);
+  assert.equal(off.skipped["izzy-off"], 1);
+});
+
+test("a release tag with slashes, as GitHub writes it in a download address, is read and then known as read", async () => {
+  const address = "https://github.com/o/r/releases/download/android/2026.12/app.apk";
+  const zip = packageZip("org.example.slashed");
+  const server = rangeServer({ [address]: zip });
+  let lookups = 0;
+  const fake = (async (input: string | URL | Request, init?: RequestInit) => {
+    if (String(input).startsWith("https://api.github.com/")) {
+      lookups++;
+      return new Response(JSON.stringify(release([{ name: "app.apk", size: zip.length, url: address, digest: `sha256:${sha(80)}` }], "android/2026.12")), {
+        status: 200,
+      });
+    }
+    return server.fetch(input, init);
+  }) as typeof fetch;
+  const apps = [app({ id: "slashed", github: { slug: "o/r", tag: "android/2026.12" } })];
+  const store = emptyStore();
+  const first = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, store, options({ fetch: fake, clock: fakeClock() }));
+  assert.equal(first.read, 1);
+  const second = await runJob({ catalog: catalog(apps), fdroidIndex: null, izzyIndex: null }, store, options({ fetch: fake, clock: fakeClock() }));
+  assert.equal(second.skipped["already-read"], 1);
+  assert.equal(lookups, 1);
 });

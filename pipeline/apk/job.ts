@@ -17,6 +17,7 @@ import type { App, Catalog } from "../../schema/catalog.ts";
 import type { PackageReading } from "../../schema/package-reading.ts";
 import { latestFiles } from "../enrich/index-v2.ts";
 import { chooseApk, type ReleaseAsset } from "./choose.ts";
+import { packageHost } from "./http.ts";
 import { Pacer, type Clock } from "./pace.ts";
 import { PackageReadError, readPackage } from "./read.ts";
 import { dropInvalid, readingKey, readingProblems, type FailureKind, type ReadingStore, type RecordKind } from "./store.ts";
@@ -25,6 +26,7 @@ export type SkipRule =
   | "not-an-app"
   | "not-open-source"
   | "izzy-off"
+  | "izzy-no-host"
   | "no-index"
   | "no-package"
   | "already-read"
@@ -38,6 +40,7 @@ export const SKIP_RULES: readonly SkipRule[] = [
   "not-an-app",
   "not-open-source",
   "izzy-off",
+  "izzy-no-host",
   "no-index",
   "no-package",
   "already-read",
@@ -127,12 +130,12 @@ function zeroFailures(): Record<FailureKind, number> {
   return Object.fromEntries(FAILURE_KINDS.map((kind) => [kind, 0])) as Record<FailureKind, number>;
 }
 
-/** The repository `owner/name` and tag of a GitHub release download address. */
+/** The repository `owner/name` and tag of a GitHub release download address. A tag may span several segments. */
 function releaseOf(url: string): { slug: string; tag: string } | null {
   const parts = new URL(url).pathname.split("/");
-  if (parts.length !== 7 || parts[3] !== "releases" || parts[4] !== "download") return null;
+  if (parts.length < 7 || parts[3] !== "releases" || parts[4] !== "download") return null;
   try {
-    return { slug: `${parts[1]}/${parts[2]}`.toLowerCase(), tag: decodeURIComponent(parts[5] ?? "") };
+    return { slug: `${parts[1]}/${parts[2]}`.toLowerCase(), tag: parts.slice(5, -1).map(decodeURIComponent).join("/") };
   } catch {
     return null;
   }
@@ -152,7 +155,7 @@ function recentRecord(store: ReadingStore, key: string, now: number, retryAfterM
 
 function githubSlug(app: App): string | null {
   const slug = app.repo?.host === "github" ? (app.github?.movedTo ?? app.repo.slug) : null;
-  return slug && SLUG_RE.test(slug) ? slug.toLowerCase() : null;
+  return slug && SLUG_RE.test(slug) && slug.split("/").every((part) => part !== "." && part !== "..") ? slug.toLowerCase() : null;
 }
 
 /** Decides, for every app, what is read and which rule skips the rest. Makes no request. */
@@ -185,11 +188,16 @@ export function plan(input: JobInput, store: ReadingStore, options: Pick<JobOpti
       skipped["no-package"]++;
       return;
     }
+    const url = `${lane === "fdroid" ? FDROID_REPO : IZZY_REPO}${file.name}`;
+    if (!packageHost(url)) {
+      skipped[lane === "izzy" ? "izzy-no-host" : "no-package"]++;
+      return;
+    }
     const key = readingKey({ sha256: file.sha256, url: "", size: 0 });
     current.add(key);
     if (store.readings[key]) skipped["already-read"]++;
     else if (recentRecord(store, key, now, options.retryAfterMs)) skipped["failed-recently"]++;
-    else candidates.push({ lane, app: app.id, owner, workKey: key, url: `${lane === "fdroid" ? FDROID_REPO : IZZY_REPO}${file.name}`, sha256: file.sha256 });
+    else candidates.push({ lane, app: app.id, owner, workKey: key, url, sha256: file.sha256 });
   };
 
   for (const app of apps) {

@@ -41,7 +41,8 @@ interface HostRule {
 }
 
 const FDROID_PATH = /^\/(repo|archive)\/[A-Za-z0-9._-]+\.apk$/;
-const GITHUB_PATH = /^\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\/releases\/download\/[^/]+\/[^/]+\.apk$/i;
+/** GitHub writes a tag that contains "/" into the address as it is, so the tag may take several segments. */
+const GITHUB_PATH = /^\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\/releases\/download\/(?:[^/]+\/)+[^/]+\.apk$/i;
 
 /** The hosts a package may be read from. IzzyOnDroid's are deliberately absent. */
 export const PACKAGE_HOSTS: readonly HostRule[] = [
