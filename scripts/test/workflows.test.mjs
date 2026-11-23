@@ -156,7 +156,7 @@ test("package readings run on schedule only when switched on, by hand with a cap
   const uses = [...text.matchAll(/uses: (actions\/cache\/(?:restore|save))@/g)].map((match) => match[1]);
   assert.deepEqual(uses, ["actions/cache/restore", "actions/cache/restore", "actions/cache/save"], "the upstream cache is restored, never saved");
   assert.match(block, /name: Save the package readings\n {8}if: always\(\) && steps\.check\.outcome == 'success'\n/);
-  assert.match(block, /path: \.package-readings\n {10}key: package-readings-\$\{\{ github\.run_id \}\}\n\s*$/);
+  assert.match(block, /path: \.package-readings\n {10}key: package-readings-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}\n\s*$/, "a re-run saves under its own key");
 });
 
 test("the keep-alive token can only manage workflows", () => {

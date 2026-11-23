@@ -63,7 +63,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .package-readings
-          key: package-readings-${{ github.run_id }}
+          key: package-readings-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: package-readings-
 
       - id: read
@@ -88,4 +88,4 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .package-readings
-          key: package-readings-${{ github.run_id }}
+          key: package-readings-${{ github.run_id }}-${{ github.run_attempt }}
