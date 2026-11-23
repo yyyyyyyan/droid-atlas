@@ -241,6 +241,22 @@ test("a directory before the tail costs one more read; a large local extra field
   assert.equal((await readDirectory(memory(padded))).entries.length, 4);
 });
 
+test("the end of the file is read small first, and widened only for a long comment", async () => {
+  const big = { name: "assets/big.bin", data: new Uint8Array(200_000).fill(9), method: 0 as const };
+  const plain = memory(sampleZip(undefined, [big]));
+  await readDirectory(plain);
+  assert.deepEqual(plain.reads.map(([, length]) => length), [4096]);
+  const commented = buildZip([{ name: "AndroidManifest.xml", data: encodeAxml(sampleManifest()) }, big], { comment: 10_000 });
+  const source = memory(commented);
+  const directory = await readDirectory(source);
+  assert.equal(directory.entries.length, 2);
+  assert.deepEqual(
+    source.reads.map(([, length]) => length),
+    [4096, 22 + 0xffff - 4096],
+  );
+  await readEntry(source, directory, findEntry(directory, "AndroidManifest.xml"));
+});
+
 test("truncated, oversized and malformed zips fail cleanly", async () => {
   const manifest = encodeAxml(sampleManifest());
   const fails = async (bytes: Uint8Array, pattern: RegExp, name = "AndroidManifest.xml"): Promise<void> => {

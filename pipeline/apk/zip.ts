@@ -55,6 +55,8 @@ const EOCD_SIZE = 22;
 const MAX_COMMENT = 0xffff;
 const CENTRAL_SIZE = 46;
 const LOCAL_SIZE = 30;
+/** The end of the file read first. Enough for an end record without a comment; a longer comment widens the read. */
+const FIRST_TAIL = 4096;
 /** Room for a local header's extra field (alignment padding) fetched with the entry, saving a request. */
 const LOCAL_EXTRA_ALLOWANCE = 512;
 
@@ -62,21 +64,49 @@ function view(bytes: Uint8Array): DataView {
   return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
+/** Offset of the last end record in `tail` whose comment fits, or -1. */
 function findEndRecord(tail: Uint8Array): number {
   const data = view(tail);
   for (let at = tail.byteLength - EOCD_SIZE; at >= 0; at--) {
     if (data.getUint32(at, true) === EOCD_SIGNATURE && at + EOCD_SIZE + data.getUint16(at + 20, true) <= tail.byteLength) return at;
   }
-  throw new ZipError("no end of central directory record");
+  return -1;
 }
 
-/** Reads the central directory: one request for the file's tail, and a second only when the directory starts before it. */
+function join(first: Uint8Array, second: Uint8Array): Uint8Array {
+  const joined = new Uint8Array(first.byteLength + second.byteLength);
+  joined.set(first);
+  joined.set(second, first.byteLength);
+  return joined;
+}
+
+/**
+ * The file's last `FIRST_TAIL` bytes, widened to the largest place an end
+ * record can sit (a 64 KiB comment) only when they hold none.
+ */
+async function readTail(source: RangeSource): Promise<{ tail: Uint8Array; tailStart: number; at: number }> {
+  const small = Math.min(source.size, FIRST_TAIL);
+  let tailStart = source.size - small;
+  let tail = await source.read(tailStart, small);
+  let at = findEndRecord(tail);
+  const widest = Math.min(source.size, EOCD_SIZE + MAX_COMMENT);
+  if (at < 0 && widest > small) {
+    const start = source.size - widest;
+    tail = join(await source.read(start, tailStart - start), tail);
+    tailStart = start;
+    at = findEndRecord(tail);
+  }
+  if (at < 0) throw new ZipError("no end of central directory record");
+  return { tail, tailStart, at };
+}
+
+/**
+ * Reads the central directory: one request for the end of the file, and one
+ * more for the part of the directory that lies before it, when one does.
+ */
 export async function readDirectory(source: RangeSource, limits: ZipLimits = ZIP_LIMITS): Promise<ZipDirectory> {
   if (source.size < EOCD_SIZE) throw new ZipError("file too small to be a zip");
-  const tailLength = Math.min(source.size, EOCD_SIZE + MAX_COMMENT);
-  const tailStart = source.size - tailLength;
-  const tail = await source.read(tailStart, tailLength);
-  const at = findEndRecord(tail);
+  const { tail, tailStart, at } = await readTail(source);
   const eocd = view(tail);
   const disk = eocd.getUint16(at + 4, true);
   const directoryDisk = eocd.getUint16(at + 6, true);
@@ -94,7 +124,7 @@ export async function readDirectory(source: RangeSource, limits: ZipLimits = ZIP
   const directory =
     directoryOffset >= tailStart
       ? tail.subarray(directoryOffset - tailStart, directoryOffset - tailStart + directorySize)
-      : await source.read(directoryOffset, directorySize);
+      : join(await source.read(directoryOffset, tailStart - directoryOffset), tail.subarray(0, directoryOffset + directorySize - tailStart));
   const data = view(directory);
   const decoder = new TextDecoder("utf-8", { fatal: true });
   const entries: ZipEntry[] = [];
@@ -159,11 +189,7 @@ export async function readEntry(
   const dataEnd = dataStart + entry.compressedSize;
   if (entry.localHeaderOffset + dataEnd > limit) throw new ZipError(`${entry.name} runs into the central directory`);
   if (dataEnd > bytes.byteLength) {
-    const rest = await source.read(entry.localHeaderOffset + bytes.byteLength, dataEnd - bytes.byteLength);
-    const joined = new Uint8Array(dataEnd);
-    joined.set(bytes);
-    joined.set(rest, bytes.byteLength);
-    bytes = joined;
+    bytes = join(bytes, await source.read(entry.localHeaderOffset + bytes.byteLength, dataEnd - bytes.byteLength));
   }
   const stored = bytes.subarray(dataStart, dataEnd);
   let content: Uint8Array;
