@@ -37,7 +37,7 @@ const { values } = parseArgs({
 
 if (values.check !== undefined) {
   const loaded = loadStore(values.check);
-  const ok = loaded.status === "read" && loaded.dropped === 0 && checkStore(loaded.store).length === 0;
+  const ok = loaded.status === "read" && loaded.dropped === 0 && checkStore(loaded.store) === 0;
   console.log(ok ? "package readings: store passes its check" : `package readings: store fails its check (${loaded.status}, ${loaded.dropped} bad entries)`);
   process.exit(ok ? 0 : 1);
 }

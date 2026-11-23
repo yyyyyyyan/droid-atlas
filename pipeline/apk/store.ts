@@ -8,13 +8,14 @@
  * rename, so the file on disk is always the last good one.
  */
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { PACKAGE_READING_FORMAT, type PackageReading } from "../../schema/package-reading.ts";
 import { packageHost } from "./http.ts";
 
 export const STORE_FORMAT = 1;
 
-/** Why a package was not read, beyond the address, HTTP, zip and manifest stages of `PackageReadError`. */
-export type FailureKind = "address" | "http" | "zip" | "manifest" | "unexpected" | "release-lookup";
+/** Why a package was not read. "not-stored": it was read, but the reading or its record failed the check of the store. */
+export type FailureKind = "address" | "http" | "zip" | "manifest" | "unexpected" | "release-lookup" | "not-stored";
 
 export interface StoreFailure {
   /** ISO time of the failed attempt. */
@@ -47,7 +48,7 @@ const PRINTABLE_RE = /^[\x21-\x7e]{1,512}$/;
 const VERSION_NAME_RE = /^[\x21-\x7e]([\x20-\x7e]{0,254}[\x21-\x7e])?$/;
 const COMPONENT_TYPES = new Set(["activity", "activity-alias", "service", "receiver"]);
 const TASKER_ROLES = new Set(["action-edit", "action-fire", "condition-edit", "condition-query", "event-edit"]);
-const FAILURE_KINDS = new Set<string>(["address", "http", "zip", "manifest", "unexpected", "release-lookup"]);
+const FAILURE_KINDS = new Set<string>(["address", "http", "zip", "manifest", "unexpected", "release-lookup", "not-stored"]);
 const READING_KEY_RE = /^(sha256:[0-9a-f]{64}|asset:https:\/\/[\x21-\x7e]+)$/;
 const WORK_KEY_RE = /^(sha256:[0-9a-f]{64}|asset:https:\/\/[\x21-\x7e]+|github:[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+@[\x21-\x7e]+)$/;
 
@@ -161,8 +162,24 @@ function keyFits(key: string, reading: unknown): boolean {
   return sha256 === null && key.startsWith(`asset:${String(reading["source"]["url"])}@${String(reading["file"]["sizeBytes"])}@`);
 }
 
-function checkFailure(value: unknown): boolean {
-  return isObject(value) && iso(value["at"]) && typeof value["kind"] === "string" && FAILURE_KINDS.has(value["kind"]);
+function checkFailure(value: unknown, now: number): boolean {
+  return (
+    isObject(value) &&
+    iso(value["at"]) &&
+    Date.parse(value["at"] as string) <= now &&
+    typeof value["kind"] === "string" &&
+    FAILURE_KINDS.has(value["kind"])
+  );
+}
+
+/** Problems with one reading under its key; empty when the store may keep it. Messages name no key or value. */
+export function readingProblems(key: string, reading: unknown): string[] {
+  return keyFits(key, reading) ? checkReading(reading) : ["key does not fit the file of the reading"];
+}
+
+/** Whether a failure record may be kept under `key`: a well-formed key, a known kind, a time not after `now`. */
+export function failureFits(key: string, failure: unknown, now: number = Date.now()): boolean {
+  return WORK_KEY_RE.test(key) && checkFailure(failure, now);
 }
 
 export interface LoadedStore {
@@ -174,7 +191,7 @@ export interface LoadedStore {
 }
 
 /** Loads the store, keeping every entry that passes the check. Never throws on the file's content. */
-export function loadStore(path: string): LoadedStore {
+export function loadStore(path: string, now: number = Date.now()): LoadedStore {
   if (!existsSync(path)) return { store: emptyStore(), status: "missing", dropped: 0 };
   let parsed: unknown;
   try {
@@ -188,39 +205,58 @@ export function loadStore(path: string): LoadedStore {
   const store = emptyStore();
   let dropped = 0;
   for (const [key, reading] of Object.entries(parsed["readings"])) {
-    if (keyFits(key, reading) && checkReading(reading).length === 0) store.readings[key] = reading as PackageReading;
+    if (readingProblems(key, reading).length === 0) store.readings[key] = reading as PackageReading;
     else dropped++;
   }
   for (const [key, failure] of Object.entries(isObject(parsed["failures"]) ? parsed["failures"] : {})) {
-    if (WORK_KEY_RE.test(key) && checkFailure(failure)) store.failures[key] = failure as StoreFailure;
+    if (failureFits(key, failure, now)) store.failures[key] = failure as StoreFailure;
     else dropped++;
   }
   return { store, status: "read", dropped };
 }
 
-/** Problems with a whole store; empty when every entry passes. */
-export function checkStore(store: ReadingStore): string[] {
-  const problems: string[] = [];
-  if (store.format !== STORE_FORMAT) problems.push("format");
-  for (const [key, reading] of Object.entries(store.readings)) {
-    if (!keyFits(key, reading)) problems.push(`${key}: key does not fit the reading's file`);
-    for (const problem of checkReading(reading)) problems.push(`${key}: ${problem}`);
-  }
-  for (const [key, failure] of Object.entries(store.failures)) {
-    if (!WORK_KEY_RE.test(key) || !checkFailure(failure)) problems.push(`${key}: failure`);
-  }
-  return problems;
+/** The number of entries that fail the check; 0 when the whole store passes. */
+export function checkStore(store: ReadingStore, now: number = Date.now()): number {
+  let failing = store.format === STORE_FORMAT ? 0 : 1;
+  for (const [key, reading] of Object.entries(store.readings)) if (readingProblems(key, reading).length) failing++;
+  for (const [key, failure] of Object.entries(store.failures)) if (!failureFits(key, failure, now)) failing++;
+  return failing;
 }
 
-/** Writes the store if it passes the check; throws otherwise and leaves the file as it was. */
-export function saveStore(path: string, store: ReadingStore): void {
-  const problems = checkStore(store);
-  if (problems.length) throw new Error(`package readings not saved: ${problems.slice(0, 5).join("; ")}`);
+/** Removes every entry that fails the check and returns how many were removed. */
+export function dropInvalid(store: ReadingStore, now: number = Date.now()): number {
+  let removed = 0;
+  for (const [key, reading] of Object.entries(store.readings)) {
+    if (readingProblems(key, reading).length) {
+      delete store.readings[key];
+      removed++;
+    }
+  }
+  for (const [key, failure] of Object.entries(store.failures)) {
+    if (!failureFits(key, failure, now)) {
+      delete store.failures[key];
+      removed++;
+    }
+  }
+  return removed;
+}
+
+/**
+ * Writes the store if it passes the check; throws otherwise, naming only a
+ * count, and leaves the file as it was. The file is first written beside the
+ * directory that holds it, not inside, so a run cut short leaves nothing
+ * partial in that directory.
+ */
+export function saveStore(path: string, store: ReadingStore, now: number = Date.now()): void {
+  const failing = checkStore(store, now);
+  if (failing) throw new Error(`package readings not saved: ${failing} entries fail the check`);
   const sorted: ReadingStore = {
     format: store.format,
     readings: Object.fromEntries(Object.entries(store.readings).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
     failures: Object.fromEntries(Object.entries(store.failures).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
   };
-  writeFileSync(`${path}.tmp`, `${JSON.stringify(sorted)}\n`);
-  renameSync(`${path}.tmp`, path);
+  const absolute = resolve(path);
+  const temporary = join(dirname(dirname(absolute)), `${basename(dirname(absolute))}.${basename(absolute)}.tmp`);
+  writeFileSync(temporary, `${JSON.stringify(sorted)}\n`);
+  renameSync(temporary, absolute);
 }

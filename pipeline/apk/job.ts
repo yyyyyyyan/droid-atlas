@@ -19,7 +19,7 @@ import { latestFiles } from "../enrich/index-v2.ts";
 import { chooseApk, type ReleaseAsset } from "./choose.ts";
 import { Pacer, type Clock } from "./pace.ts";
 import { PackageReadError, readPackage } from "./read.ts";
-import { readingKey, type FailureKind, type ReadingStore } from "./store.ts";
+import { dropInvalid, readingKey, readingProblems, type FailureKind, type ReadingStore } from "./store.ts";
 
 export type SkipRule =
   | "not-an-app"
@@ -46,7 +46,7 @@ export const SKIP_RULES: readonly SkipRule[] = [
   "time-limit",
 ];
 
-export const FAILURE_KINDS: readonly FailureKind[] = ["address", "http", "zip", "manifest", "unexpected", "release-lookup"];
+export const FAILURE_KINDS: readonly FailureKind[] = ["address", "http", "zip", "manifest", "unexpected", "release-lookup", "not-stored"];
 
 export interface JobCounts {
   read: number;
@@ -209,7 +209,7 @@ export function plan(input: JobInput, store: ReadingStore, options: Pick<JobOpti
     } else if (slug && release?.hasApk) {
       const owner = `github:${slug}`;
       owners.add(owner);
-      const workKey = `github:${slug}@${release.tag}`;
+      const workKey = `github:${slug}@${encodeURIComponent(release.tag)}`;
       const done = readByRelease.get(`${slug}@${release.tag}`);
       if (done) {
         current.add(done);
@@ -319,28 +319,41 @@ export async function runJob(input: JobInput, store: ReadingStore, options: JobO
   const paced = pacer.fetch(options.fetch);
   const at = (): string => new Date(options.clock.now()).toISOString();
 
+  const fail = (workKey: string, kind: FailureKind): void => {
+    store.failures[workKey] = { at: at(), kind };
+    failed[kind]++;
+  };
   const record = (reading: PackageReading, key: string, workKey: string): void => {
+    if (readingProblems(key, reading).length) return fail(workKey, "not-stored");
     store.readings[key] = reading;
     current.add(key);
     delete store.failures[workKey];
     read++;
   };
-  const fail = (workKey: string, kind: FailureKind): void => {
-    store.failures[workKey] = { at: at(), kind };
-    failed[kind]++;
-  };
-  const attempt = async (address: string, sha256: string | null, key: string, workKey: string): Promise<void> => {
+  const attempt = async (address: string, sha256: string | null, workKey: string): Promise<PackageReading | null> => {
     try {
-      const reading = await readPackage(address, { sha256, fetch: paced, now: () => new Date(options.clock.now()) });
-      record(reading, key, workKey);
+      return await readPackage(address, { sha256, fetch: paced, now: () => new Date(options.clock.now()) });
     } catch (error) {
-      if (!(error instanceof PackageReadError)) throw error;
-      fail(workKey, error.stage);
+      fail(workKey, error instanceof PackageReadError ? error.stage : "unexpected");
+      return null;
+    }
+  };
+  const progress = (): void => {
+    if (!options.onProgress) return;
+    try {
+      options.onProgress(store);
+    } catch {
+      failed["not-stored"] += dropInvalid(store, options.clock.now());
+      options.onProgress(store);
     }
   };
 
   const one = async (item: Work): Promise<void> => {
-    if (item.lane !== "github") return attempt(item.url, item.sha256, item.workKey, item.workKey);
+    if (item.lane !== "github") {
+      const reading = await attempt(item.url, item.sha256, item.workKey);
+      if (reading) record(reading, item.workKey, item.workKey);
+      return;
+    }
     let assets: ReleaseAsset[];
     try {
       assets = await latestReleaseAssets(item.slug, paced, options.githubToken);
@@ -358,7 +371,10 @@ export async function runJob(input: JobInput, store: ReadingStore, options: JobO
       skipped["already-read"]++;
       return;
     }
-    return attempt(chosen.url, chosen.sha256, key, item.workKey);
+    const reading = await attempt(chosen.url, chosen.sha256, item.workKey);
+    if (!reading) return;
+    if (reading.file.sizeBytes !== chosen.size) return fail(item.workKey, "http");
+    record(reading, key, item.workKey);
   };
 
   const lanes = new Map<Lane, Work[]>();
@@ -371,7 +387,7 @@ export async function runJob(input: JobInput, store: ReadingStore, options: JobO
           continue;
         }
         await one(item);
-        options.onProgress?.(store);
+        progress();
       }
     }),
   );

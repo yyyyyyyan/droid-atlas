@@ -6,7 +6,7 @@ import { test } from "node:test";
 import type { App, Catalog, Openness } from "../../schema/catalog.ts";
 import type { PackageReading } from "../../schema/package-reading.ts";
 import { chooseApk, type ReleaseAsset } from "../apk/choose.ts";
-import { JOB_DEFAULTS, plan, runJob, summary, type JobOptions } from "../apk/job.ts";
+import { FAILURE_KINDS, JOB_DEFAULTS, plan, runJob, SKIP_RULES, summary, type JobCounts, type JobOptions } from "../apk/job.ts";
 import { Pacer, type Clock } from "../apk/pace.ts";
 import { checkStore, emptyStore, loadStore, saveStore, type ReadingStore } from "../apk/store.ts";
 import { buildZip, el, encodeAxml, rangeServer } from "./apk-fixtures.ts";
@@ -277,7 +277,7 @@ test("a run reads up to the cap, paced per host, and records every reading by it
   const fdroid = net.starts.filter((s) => s.host === "f-droid.org").map((s) => s.at);
   assert.ok(fdroid.length >= 6);
   for (let i = 1; i < fdroid.length; i++) assert.ok((fdroid[i] as number) - (fdroid[i - 1] as number) >= 1000, "one request a second to F-Droid");
-  assert.deepEqual(checkStore(store), []);
+  assert.equal(checkStore(store), 0);
 
   const again = await runJob(
     { catalog: catalog(pkgs.map((pkg, i) => app({ id: `app-${i}`, fdroid: pkg }))), fdroidIndex: index(files), izzyIndex: null },
@@ -293,10 +293,19 @@ test("GitHub releases are looked up, the rule picks the file, and a release read
   const clock = fakeClock();
   const chosen = "https://github.com/wgtunnel/android/releases/download/5.9.1/wgtunnel-standalone-v5.9.1.apk";
   const asset = "https://release-assets.githubusercontent.com/x/wgtunnel-standalone-v5.9.1.apk";
-  const server = rangeServer({ [asset]: packageZip("org.example.tunnel") }, { redirects: { [chosen]: asset } });
+  const zip = packageZip("org.example.tunnel");
+  const server = rangeServer({ [asset]: zip }, { redirects: { [chosen]: asset } });
+  const sizeOf = (name: string): number =>
+    name.endsWith("standalone-v5.9.1.apk") ? zip.length : name.endsWith("fdroid-v5.9.1.apk") ? zip.length - 1 : Math.floor(zip.length / 4);
   const release = {
     tag_name: "5.9.1",
-    assets: WG_TUNNEL.map((a) => ({ name: a.name, size: a.size, browser_download_url: a.url, updated_at: a.updatedAt, digest: a.name.endsWith("standalone-v5.9.1.apk") ? `sha256:${sha(7)}` : null })),
+    assets: WG_TUNNEL.map((a) => ({
+      name: a.name,
+      size: sizeOf(a.name),
+      browser_download_url: a.url,
+      updated_at: a.updatedAt,
+      digest: a.name.endsWith("standalone-v5.9.1.apk") ? `sha256:${sha(7)}` : null,
+    })),
   };
   let lookups = 0;
   const fake = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -418,7 +427,7 @@ test("the store keeps good entries, drops bad ones, and is never saved broken", 
   const loaded = loadStore(path);
   const spaced = goodReading(8);
   spaced.version = { name: "1.2 beta", code: { unread: "resource-reference", ref: "0x7f0a0001" } };
-  assert.deepEqual(checkStore({ format: 1, readings: { [`sha256:${sha(8)}`]: spaced }, failures: {} }), []);
+  assert.equal(checkStore({ format: 1, readings: { [`sha256:${sha(8)}`]: spaced }, failures: {} }), 0);
   assert.equal(loaded.status, "read");
   assert.deepEqual(Object.keys(loaded.store.readings), [`sha256:${sha(2)}`]);
   assert.deepEqual(Object.keys(loaded.store.failures), ["github:o/r@v1"]);
@@ -428,20 +437,16 @@ test("the store keeps good entries, drops bad ones, and is never saved broken", 
   saveStore(path, loaded.store);
   const saved = readFileSync(path, "utf8");
   const broken: ReadingStore = { ...loaded.store, readings: { ...loaded.store.readings, [`sha256:${sha(3)}`]: bad as unknown as PackageReading } };
-  assert.notDeepEqual(checkStore(broken), []);
+  assert.notEqual(checkStore(broken), 0);
   assert.throws(() => saveStore(path, broken), /not saved/);
   assert.equal(readFileSync(path, "utf8"), saved, "the last good file stays");
 });
 
 test("the summary states counts only", () => {
+  const skipped = Object.fromEntries(SKIP_RULES.map((rule) => [rule, 0])) as JobCounts["skipped"];
+  const failed = Object.fromEntries(FAILURE_KINDS.map((kind) => [kind, 0])) as JobCounts["failed"];
   const text = summary(
-    {
-      read: 3,
-      skipped: { "not-an-app": 1, "not-open-source": 2, "izzy-off": 0, "no-index": 0, "no-package": 4, "already-read": 5, "failed-recently": 0, "no-apk-by-rule": 1, "over-cap": 6, "time-limit": 0 },
-      failed: { address: 0, http: 1, zip: 0, manifest: 0, unexpected: 0, "release-lookup": 2 },
-      carriedOver: 7,
-      dropped: 1,
-    },
+    { read: 3, skipped: { ...skipped, "over-cap": 6 }, failed: { ...failed, "release-lookup": 2 }, carriedOver: 7, dropped: 1 },
     "read",
   );
   assert.match(text, /\| Read \| 3 \|/);
@@ -450,4 +455,90 @@ test("the summary states counts only", () => {
   assert.match(text, /\| Carried over \| 7 \|/);
   assert.match(text, /\| Dropped \| 1 \|/);
   assert.doesNotMatch(text, /org\.|https?:/);
+});
+
+function release(assets: { name: string; size: number; url: string; digest?: string | null }[], tag = "v1"): unknown {
+  return {
+    tag_name: tag,
+    assets: assets.map((a) => ({ name: a.name, size: a.size, browser_download_url: a.url, updated_at: "2026-11-01T00:00:00Z", digest: a.digest ?? null })),
+  };
+}
+
+test("a release tag outside printable ASCII gives a failure key the store accepts, and the run saves", async () => {
+  const clock = fakeClock();
+  const dir = mkdtempSync(join(tmpdir(), "readings-"));
+  const path = join(dir, "readings.json");
+  const down = (async () => new Response("{}", { status: 404 })) as typeof fetch;
+  const store = emptyStore();
+  await runJob(
+    { catalog: catalog([app({ id: "a", github: { slug: "o/r", tag: "v1.0-β" } })]), fdroidIndex: null, izzyIndex: null },
+    store,
+    options({ fetch: down, clock, onProgress: (s) => saveStore(path, s) }),
+  );
+  assert.deepEqual(Object.keys(store.failures), ["github:o/r@v1.0-%CE%B2"]);
+  assert.equal(checkStore(store), 0);
+  assert.deepEqual(Object.keys(loadStore(path).store.failures), ["github:o/r@v1.0-%CE%B2"]);
+});
+
+test("an asset whose stated size is not the size served is an HTTP failure, not a stored reading", async () => {
+  const clock = fakeClock();
+  const url = "https://github.com/o/r/releases/download/v1/app.apk";
+  const zip = packageZip("org.example.sized");
+  const server = rangeServer({ [url]: zip });
+  const fake = (async (input: string | URL | Request, init?: RequestInit) =>
+    String(input).startsWith("https://api.github.com/")
+      ? new Response(JSON.stringify(release([{ name: "app.apk", size: zip.length + 1, url }])), { status: 200 })
+      : server.fetch(input, init)) as typeof fetch;
+  const dir = mkdtempSync(join(tmpdir(), "readings-"));
+  const store = emptyStore();
+  const counts = await runJob(
+    { catalog: catalog([app({ id: "a", github: { slug: "o/r", tag: "v1" } })]), fdroidIndex: null, izzyIndex: null },
+    store,
+    options({ fetch: fake, clock, onProgress: (s) => saveStore(join(dir, "r.json"), s) }),
+  );
+  assert.equal(counts.read, 0);
+  assert.equal(counts.failed.http, 1);
+  assert.deepEqual(store.readings, {});
+  assert.deepEqual(Object.keys(store.failures), ["github:o/r@v1"]);
+});
+
+test("a store that fails its check is reported by count only, and the run drops the bad entry and goes on", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "readings-"));
+  const path = join(dir, "readings.json");
+  const secret = "github:secretowner/secretrepo@v9";
+  const bad: ReadingStore = { format: 1, readings: {}, failures: { [secret]: { at: "not a date", kind: "http" } } };
+  assert.throws(
+    () => saveStore(path, bad),
+    (error: unknown) => error instanceof Error && /not saved: 1 entr/.test(error.message) && !error.message.includes("secret"),
+  );
+
+  const clock = fakeClock();
+  const pkg = "org.example.after";
+  const net = web({ [`https://f-droid.org/repo/${pkg}_2.apk`]: packageZip(pkg) }, {}, clock);
+  const store = emptyStore();
+  store.failures[secret] = { at: "not a date", kind: "http" };
+  const counts = await runJob(
+    { catalog: catalog([app({ id: "after", fdroid: pkg })]), fdroidIndex: index({ [pkg]: { code: 2, sha256: sha(60) } }), izzyIndex: null },
+    store,
+    options({ fetch: net.fetch, clock, onProgress: (s) => saveStore(path, s) }),
+  );
+  assert.equal(counts.read, 1);
+  assert.equal(counts.failed["not-stored"], 1);
+  assert.deepEqual(Object.keys(loadStore(path).store.readings), [`sha256:${sha(60)}`]);
+});
+
+test("a failure dated in the future is dropped when the store is loaded", () => {
+  const dir = mkdtempSync(join(tmpdir(), "readings-"));
+  const path = join(dir, "readings.json");
+  writeFileSync(
+    path,
+    JSON.stringify({
+      format: 1,
+      readings: {},
+      failures: { "github:o/r@v1": { at: "2026-11-20T00:00:00Z", kind: "http" }, "github:o/s@v1": { at: "2099-01-01T00:00:00Z", kind: "http" } },
+    }),
+  );
+  const loaded = loadStore(path, Date.parse("2026-11-23T08:00:00Z"));
+  assert.deepEqual(Object.keys(loaded.store.failures), ["github:o/r@v1"]);
+  assert.equal(loaded.dropped, 1);
 });
