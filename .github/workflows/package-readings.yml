@@ -1,0 +1,91 @@
+name: Package readings
+
+# Reads the manifests of package files no earlier run has read
+# (docs/ARCHITECTURE.md § Package readings). The schedule is off unless the
+# repository variable PACKAGE_READINGS_ENABLED is "true"; a run by hand always
+# runs. The readings are kept in the Actions cache between runs; they are
+# not published on the site, in an artifact or in a log, and the catalog
+# build reads nothing from them. docs/RELEASE.md lists every switch.
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+    inputs:
+      cap:
+        description: Most packages to read in this run
+        type: number
+        default: 20
+
+permissions: {}
+
+concurrency:
+  group: package-readings
+  cancel-in-progress: false
+
+env:
+  SITE_URL: ${{ vars.SITE_URL }}
+  READINGS_IZZY: ${{ vars.PACKAGE_READINGS_IZZY }}
+  READINGS_CLOSED: ${{ vars.PACKAGE_READINGS_CLOSED }}
+
+jobs:
+  read:
+    name: Read new package versions
+    if: github.event_name == 'workflow_dispatch' || vars.PACKAGE_READINGS_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore the upstream cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache
+          key: upstream-${{ github.run_id }}
+          restore-keys: upstream-
+
+      - name: Restore the package readings
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .package-readings
+          key: package-readings-${{ github.run_id }}
+          restore-keys: package-readings-
+
+      - id: read
+        name: Read new package versions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CAP_INPUT: ${{ inputs.cap }}
+        run: |
+          args=(--catalog "${SITE_URL%/}/data/version.json" --store .package-readings/readings.json
+            --cache .cache --cap "${CAP_INPUT:-200}" --stop-after-minutes 40 --summary "$GITHUB_STEP_SUMMARY")
+          if [ "$READINGS_IZZY" = "true" ]; then args+=(--izzy); fi
+          if [ "$READINGS_CLOSED" = "true" ]; then args+=(--closed); fi
+          node pipeline/scripts/package-readings.ts "${args[@]}"
+
+      - id: check
+        name: Check the package readings
+        if: always() && hashFiles('.package-readings/readings.json') != ''
+        run: node pipeline/scripts/package-readings.ts --check .package-readings/readings.json
+
+      - name: Save the package readings
+        if: always() && steps.check.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .package-readings
+          key: package-readings-${{ github.run_id }}

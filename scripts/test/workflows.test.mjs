@@ -126,6 +126,39 @@ test("the only secrets are the optional Cloudflare token and account id, the bui
   assert.match(build, /permissions:\n {6}contents: read\n(?! {6})/);
 });
 
+test("package readings run on schedule only when switched on, by hand with a cap of 20, and publish nothing", () => {
+  const text = read("package-readings.yml");
+  const blocks = jobs(text);
+  assert.deepEqual(Object.keys(blocks), ["read"]);
+  const block = blocks.read;
+  assert.equal(ifOf(block), "github.event_name == 'workflow_dispatch' || vars.PACKAGE_READINGS_ENABLED == 'true'");
+  assert.match(text, /workflow_dispatch:\n {4}inputs:\n {6}cap:\n(?: {8}.*\n)*? {8}default: 20\n/);
+  assert.match(block, /permissions:\n {6}contents: read\n(?! {6})/);
+  assert.match(block, /timeout-minutes: \d+/);
+  const code = text.replace(/^\s*#.*$/gm, "");
+  assert.doesNotMatch(code, /secrets\.|upload-artifact|deploy|pages|wrangler|gh issue|issues: write/);
+  let runIndent = -1;
+  for (const line of text.split("\n")) {
+    const indent = line.length - line.trimStart().length;
+    if (runIndent >= 0 && line.trim() && indent <= runIndent) runIndent = -1;
+    const run = /^(\s*)run: (.*)$/.exec(line);
+    if (run) {
+      assert.doesNotMatch(run[2], /\$\{\{/, "expressions reach the shell through env only");
+      if (run[2].startsWith("|")) runIndent = run[1].length;
+    } else if (runIndent >= 0) {
+      assert.doesNotMatch(line, /\$\{\{/, `expressions reach the shell through env only: ${line.trim()}`);
+    }
+  }
+  assert.match(block, /CAP_INPUT: \$\{\{ inputs\.cap \}\}/);
+  assert.doesNotMatch(block, /--izzy"?\)?\s*$/m, "IzzyOnDroid is not read unless its variable is true");
+  assert.match(block, /if \[ "\$READINGS_IZZY" = "true" \]; then args\+=\(--izzy\); fi/);
+  assert.match(block, /if \[ "\$READINGS_CLOSED" = "true" \]; then args\+=\(--closed\); fi/);
+  const uses = [...text.matchAll(/uses: (actions\/cache\/(?:restore|save))@/g)].map((match) => match[1]);
+  assert.deepEqual(uses, ["actions/cache/restore", "actions/cache/restore", "actions/cache/save"], "the upstream cache is restored, never saved");
+  assert.match(block, /name: Save the package readings\n {8}if: always\(\) && steps\.check\.outcome == 'success'\n/);
+  assert.match(block, /path: \.package-readings\n {10}key: package-readings-\$\{\{ github\.run_id \}\}\n\s*$/);
+});
+
 test("the keep-alive token can only manage workflows", () => {
   const block = jobs(read("refresh.yml")).keepalive;
   assert.match(block, /permissions:\n {6}actions: write(?: #.*)?\n(?! {6})/);
