@@ -435,7 +435,7 @@ test("the summary states counts only", () => {
     {
       read: 3,
       skipped: { "not-an-app": 1, "not-open-source": 2, "izzy-off": 0, "no-index": 0, "no-package": 4, "already-read": 5, "failed-recently": 0, "no-apk-by-rule": 1, "over-cap": 6, "time-limit": 0 },
-      failed: { address: 0, http: 1, zip: 0, manifest: 0, "release-lookup": 2 },
+      failed: { address: 0, http: 1, zip: 0, manifest: 0, unexpected: 0, "release-lookup": 2 },
       carriedOver: 7,
       dropped: 1,
     },

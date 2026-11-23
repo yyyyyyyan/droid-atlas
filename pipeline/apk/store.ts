@@ -14,7 +14,7 @@ import { packageHost } from "./http.ts";
 export const STORE_FORMAT = 1;
 
 /** Why a package was not read, beyond the address, HTTP, zip and manifest stages of `PackageReadError`. */
-export type FailureKind = "address" | "http" | "zip" | "manifest" | "release-lookup";
+export type FailureKind = "address" | "http" | "zip" | "manifest" | "unexpected" | "release-lookup";
 
 export interface StoreFailure {
   /** ISO time of the failed attempt. */
@@ -46,7 +46,7 @@ const FILE_NAME_RE = /^[A-Za-z0-9._+-]{1,255}$/;
 const PRINTABLE_RE = /^[\x21-\x7e]{1,512}$/;
 const COMPONENT_TYPES = new Set(["activity", "activity-alias", "service", "receiver"]);
 const TASKER_ROLES = new Set(["action-edit", "action-fire", "condition-edit", "condition-query", "event-edit"]);
-const FAILURE_KINDS = new Set<string>(["address", "http", "zip", "manifest", "release-lookup"]);
+const FAILURE_KINDS = new Set<string>(["address", "http", "zip", "manifest", "unexpected", "release-lookup"]);
 const READING_KEY_RE = /^(sha256:[0-9a-f]{64}|asset:https:\/\/[\x21-\x7e]+)$/;
 const WORK_KEY_RE = /^(sha256:[0-9a-f]{64}|asset:https:\/\/[\x21-\x7e]+|github:[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+@[\x21-\x7e]+)$/;
 

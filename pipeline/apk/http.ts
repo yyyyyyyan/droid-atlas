@@ -63,6 +63,7 @@ export function packageHost(address: string, hosts: readonly HostRule[] = PACKAG
   } catch {
     return null;
   }
+  if (url.href !== address) return null;
   if (url.protocol !== "https:" || url.username || url.password || url.port || url.search || url.hash) return null;
   return hosts.find((rule) => rule.start(url)) ?? null;
 }
@@ -87,7 +88,7 @@ export async function openPackage(address: string, options: OpenOptions = {}): P
   const fetchFn = options.fetch ?? fetch;
   const limits = options.limits ?? HTTP_LIMITS;
   const rule = packageHost(address, options.hosts);
-  if (!rule) throw new HttpReadError(`not an allowed package address: ${address}`);
+  if (!rule) throw new HttpReadError("not an allowed package address");
   const allowedRedirects = rule.redirects;
   const deadline = AbortSignal.timeout(limits.totalTimeoutMs);
   const transfer = { requests: 0, bytes: 0 };
@@ -140,7 +141,12 @@ export async function openPackage(address: string, options: OpenOptions = {}): P
         const location = response.headers.get("location");
         if (!location) throw new HttpReadError("redirect without a location");
         if (hops >= limits.maxRedirects) throw new HttpReadError(`more than ${limits.maxRedirects} redirects`);
-        const next = new URL(location, current);
+        let next: URL;
+        try {
+          next = new URL(location, current);
+        } catch {
+          throw new HttpReadError("redirect to a location that does not parse");
+        }
         if (next.protocol !== "https:" || next.username || next.password || next.port || !allowedRedirects.includes(next.hostname)) {
           throw new HttpReadError(`redirect to a host that is not allowed: ${next.hostname}`);
         }

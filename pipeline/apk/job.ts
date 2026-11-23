@@ -46,7 +46,7 @@ export const SKIP_RULES: readonly SkipRule[] = [
   "time-limit",
 ];
 
-export const FAILURE_KINDS: readonly FailureKind[] = ["address", "http", "zip", "manifest", "release-lookup"];
+export const FAILURE_KINDS: readonly FailureKind[] = ["address", "http", "zip", "manifest", "unexpected", "release-lookup"];
 
 export interface JobCounts {
   read: number;

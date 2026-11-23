@@ -400,6 +400,26 @@ test("addresses, hashes and servers that are not as expected stop a reading", as
   await stage(FDROID, { fetch: rangeServer({ [FDROID]: sampleZip(new Uint8Array(64)) }).fetch }, "manifest", /not a binary XML/);
 });
 
+test("every failure of a reading, even an unforeseen one, is a PackageReadError", async () => {
+  const badLocation = (async () => new Response(null, { status: 302, headers: { location: "https://[bad" } })) as typeof fetch;
+  await assert.rejects(readPackage(FDROID, { fetch: badLocation }), (error: unknown) => {
+    return error instanceof PackageReadError && error.stage === "http" && /location/.test(error.message);
+  });
+  const strange = (async () => ({ status: 206, headers: { get: () => { throw new Error("boom"); } }, body: null })) as unknown as typeof fetch;
+  await assert.rejects(readPackage(FDROID, { fetch: strange }), (error: unknown) => error instanceof PackageReadError && error.stage === "unexpected");
+});
+
+test("an address must already be in the form the URL parser gives it, and is not echoed", async () => {
+  const server = rangeServer({});
+  for (const address of ["https://f-droid.org/repo/org.example.tiles_7\t.apk", "https://f-droid.org/repo/org.example.\ntiles_7.apk", "HTTPS://F-DROID.ORG/repo/org.example.tiles_7.apk"]) {
+    assert.equal(packageHost(address), null, JSON.stringify(address));
+    await assert.rejects(readPackage(address, { fetch: server.fetch }), (error: unknown) => {
+      return error instanceof PackageReadError && error.stage === "address" && !error.message.includes("tiles_7");
+    });
+  }
+  assert.equal(server.requests.length, 0);
+});
+
 test("time limits and the request budget end a reading", async () => {
   const limits = { requestTimeoutMs: 50, totalTimeoutMs: 1000, maxRequests: 10, maxBytes: 1 << 20, maxRedirects: 3, maxFileBytes: 1 << 30 };
   await assert.rejects(

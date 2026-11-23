@@ -19,7 +19,8 @@ export interface ReadOptions extends OpenOptions {
 
 /** A reading that could not be made, with the stage that refused it. */
 export class PackageReadError extends Error {
-  readonly stage: "address" | "http" | "zip" | "manifest";
+  /** "unexpected" is any error the reader did not foresee: a reading never fails with anything but this class. */
+  readonly stage: "address" | "http" | "zip" | "manifest" | "unexpected";
   constructor(stage: PackageReadError["stage"], message: string) {
     super(message);
     this.stage = stage;
@@ -46,14 +47,14 @@ function rethrow(error: unknown): never {
   if (error instanceof HttpReadError) throw new PackageReadError("http", error.message);
   if (error instanceof ZipError) throw new PackageReadError("zip", error.message);
   if (error instanceof AxmlError || error instanceof ManifestError) throw new PackageReadError("manifest", error.message);
-  throw error;
+  throw new PackageReadError("unexpected", error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 200) : "unknown error");
 }
 
 /** Reads one package. Throws `PackageReadError` when the address, the server or the file is not as expected. */
 export async function readPackage(address: string, options: ReadOptions = {}): Promise<PackageReading> {
   const sha256 = options.sha256?.toLowerCase() ?? null;
   if (sha256 !== null && !SHA256_RE.test(sha256)) throw new PackageReadError("address", "sha256 is not 64 hexadecimal digits");
-  if (!packageHost(address, options.hosts)) throw new PackageReadError("address", `not an allowed package address: ${address}`);
+  if (!packageHost(address, options.hosts)) throw new PackageReadError("address", "not an allowed package address, or not in the form the URL parser gives it");
   try {
     const name = fileName(address);
     const source = await openPackage(address, options);
