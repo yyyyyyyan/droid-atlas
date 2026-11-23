@@ -281,7 +281,7 @@ test("the zip directory and one entry are read by range, and nothing else", asyn
   const source = memory(bytes);
   const directory = await readDirectory(source);
   assert.deepEqual(
-    directory.entries.map((e) => e.name),
+    directory.entries.map((e) => new TextDecoder().decode(e.nameBytes)),
     ["classes.dex", "AndroidManifest.xml", "resources.arsc"],
   );
   const entry = findEntry(directory, "AndroidManifest.xml");
@@ -370,7 +370,31 @@ test("truncated, oversized and malformed zips fail cleanly", async () => {
   await fails(buildZip([{ name: "AndroidManifest.xml", data: manifest, central: { compressedSize: 3 * 1024 * 1024 } }]), /bytes compressed/);
   await fails(buildZip([{ name: "AndroidManifest.xml", data: manifest, central: { offset: 40 } }]), /bad local header|runs into/);
   const bomb = new Uint8Array(64 * 1024 * 1024);
-  await fails(buildZip([{ name: "AndroidManifest.xml", data: bomb, central: { size: 1000 } }]), /does not inflate|not the 1000 stated/);
+  await fails(buildZip([{ name: "AndroidManifest.xml", data: bomb, central: { size: 1000 } }]), /does not inflate/);
+});
+
+test("an end record is the one whose comment ends at the end of the file, not a lookalike inside the comment", async () => {
+  const fake = new Uint8Array(22);
+  new DataView(fake.buffer).setUint32(0, 0x06054b50, true);
+  const comment = Uint8Array.from([...fake, ...new Uint8Array(40).fill(0x20)]);
+  const bytes = buildZip([{ name: "AndroidManifest.xml", data: encodeAxml(sampleManifest()) }], { comment });
+  const source = memory(bytes);
+  const directory = await readDirectory(source);
+  assert.deepEqual(new Uint8Array(await readEntry(source, directory, findEntry(directory, "AndroidManifest.xml"))), encodeAxml(sampleManifest()));
+});
+
+test("the manifest is found by the bytes of its name; other names are not decoded, and the local header must name the same entry", async () => {
+  const manifest = encodeAxml(sampleManifest());
+  const latin1 = buildZip([
+    { name: "", rawName: Uint8Array.from([0x72, 0x65, 0x73, 0x2f, 0xe9, 0x2e, 0x70, 0x6e, 0x67]), data: new Uint8Array(3) },
+    { name: "AndroidManifest.xml", data: manifest },
+  ]);
+  const source = memory(latin1);
+  const directory = await readDirectory(source);
+  assert.deepEqual(new Uint8Array(await readEntry(source, directory, findEntry(directory, "AndroidManifest.xml"))), manifest);
+  const swapped = memory(buildZip([{ name: "AndroidManifest.xml", localName: "AndroidManifest.xmm", data: manifest }]));
+  const swappedDirectory = await readDirectory(swapped);
+  await assert.rejects(readEntry(swapped, swappedDirectory, findEntry(swappedDirectory, "AndroidManifest.xml")), /names another entry/);
 });
 
 test("only F-Droid and GitHub release addresses are accepted", () => {

@@ -329,10 +329,15 @@ export interface ZipFile {
   central?: Partial<{ size: number; compressedSize: number; crc32: number; flags: number; method: number; offset: number }>;
   /** Extra bytes in the local header, as zipalign adds them. */
   localExtra?: number;
+  /** The name as raw bytes, in place of `name`, which may then be anything. */
+  rawName?: Uint8Array;
+  /** Another name of the same length in the local header only. */
+  localName?: string;
 }
 
 export interface ZipOptions {
-  comment?: number;
+  /** A comment of this many zero bytes, or of these bytes. */
+  comment?: number | Uint8Array;
   eocd?: Partial<{ count: number; directorySize: number; directoryOffset: number; disk: number }>;
 }
 
@@ -343,7 +348,8 @@ export function buildZip(files: ZipFile[], options: ZipOptions = {}): Uint8Array
   for (const file of files) {
     const method = file.method ?? 8;
     const stored = method === 8 ? deflateRawSync(file.data) : file.data;
-    const name = new TextEncoder().encode(file.name);
+    const name = file.rawName ?? new TextEncoder().encode(file.name);
+    const localName = file.localName === undefined ? name : new TextEncoder().encode(file.localName);
     const offset = out.bytes.length;
     const crc = crc32(file.data);
     const extra = file.localExtra ?? 0;
@@ -357,7 +363,7 @@ export function buildZip(files: ZipFile[], options: ZipOptions = {}): Uint8Array
     out.u32(file.data.length);
     out.u16(name.length);
     out.u16(extra);
-    out.put(name);
+    out.put(localName);
     out.put(new Uint8Array(extra));
     out.put(stored);
     const c = file.central ?? {};
@@ -389,8 +395,9 @@ export function buildZip(files: ZipFile[], options: ZipOptions = {}): Uint8Array
   out.u16(e.count ?? files.length);
   out.u32(e.directorySize ?? central.bytes.length);
   out.u32(e.directoryOffset ?? directoryOffset);
-  out.u16(options.comment ?? 0);
-  out.put(new Uint8Array(options.comment ?? 0));
+  const comment = typeof options.comment === "number" ? new Uint8Array(options.comment) : (options.comment ?? new Uint8Array(0));
+  out.u16(comment.length);
+  out.put(comment);
   return Uint8Array.from(out.bytes);
 }
 

@@ -31,7 +31,8 @@ export const ZIP_LIMITS: Readonly<ZipLimits> = {
 };
 
 export interface ZipEntry {
-  name: string;
+  /** The name as stored. Names are compared as bytes and never decoded, so a name in another encoding does not refuse the file. */
+  nameBytes: Uint8Array;
   method: number;
   flags: number;
   crc32: number;
@@ -64,13 +65,22 @@ function view(bytes: Uint8Array): DataView {
   return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
-/** Offset of the last end record in `tail` whose comment fits, or -1. */
+/** Offset of the last end record in `tail` (which ends at the end of the file) whose comment ends exactly there, or -1. */
 function findEndRecord(tail: Uint8Array): number {
   const data = view(tail);
   for (let at = tail.byteLength - EOCD_SIZE; at >= 0; at--) {
-    if (data.getUint32(at, true) === EOCD_SIGNATURE && at + EOCD_SIZE + data.getUint16(at + 20, true) <= tail.byteLength) return at;
+    if (data.getUint32(at, true) === EOCD_SIGNATURE && at + EOCD_SIZE + data.getUint16(at + 20, true) === tail.byteLength) return at;
   }
   return -1;
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  return a.byteLength === b.byteLength && a.every((byte, i) => byte === b[i]);
+}
+
+/** The name of an entry for a message: printable ASCII, other bytes as `?`, at most 80 characters. */
+function label(entry: ZipEntry): string {
+  return String.fromCharCode(...entry.nameBytes.subarray(0, 80).map((byte) => (byte >= 0x20 && byte < 0x7f ? byte : 0x3f)));
 }
 
 function join(first: Uint8Array, second: Uint8Array): Uint8Array {
@@ -126,7 +136,6 @@ export async function readDirectory(source: RangeSource, limits: ZipLimits = ZIP
       ? tail.subarray(directoryOffset - tailStart, at)
       : join(await source.read(directoryOffset, tailStart - directoryOffset), tail.subarray(0, at));
   const data = view(directory);
-  const decoder = new TextDecoder("utf-8", { fatal: true });
   const entries: ZipEntry[] = [];
   let position = 0;
   for (let i = 0; i < count; i++) {
@@ -137,14 +146,8 @@ export async function readDirectory(source: RangeSource, limits: ZipLimits = ZIP
     const commentLength = data.getUint16(position + 32, true);
     const next = position + CENTRAL_SIZE + nameLength + extraLength + commentLength;
     if (next > directory.byteLength) throw new ZipError("central directory entry runs past the directory");
-    let name: string;
-    try {
-      name = decoder.decode(directory.subarray(position + CENTRAL_SIZE, position + CENTRAL_SIZE + nameLength));
-    } catch {
-      throw new ZipError("entry name is not UTF-8");
-    }
     entries.push({
-      name,
+      nameBytes: directory.subarray(position + CENTRAL_SIZE, position + CENTRAL_SIZE + nameLength),
       flags: data.getUint16(position + 8, true),
       method: data.getUint16(position + 10, true),
       crc32: data.getUint32(position + 16, true),
@@ -159,7 +162,8 @@ export async function readDirectory(source: RangeSource, limits: ZipLimits = ZIP
 
 /** The one entry of that name. Two entries of one name are refused, as Android refuses them. */
 export function findEntry(directory: ZipDirectory, name: string): ZipEntry {
-  const matches = directory.entries.filter((entry) => entry.name === name);
+  const wanted = new TextEncoder().encode(name);
+  const matches = directory.entries.filter((entry) => sameBytes(entry.nameBytes, wanted));
   if (matches.length === 0) throw new ZipError(`no ${name}`);
   if (matches.length > 1) throw new ZipError(`${matches.length} entries named ${name}`);
   return matches[0] as ZipEntry;
@@ -172,22 +176,25 @@ export async function readEntry(
   entry: ZipEntry,
   limits: ZipLimits = ZIP_LIMITS,
 ): Promise<Uint8Array> {
-  if (entry.flags & 0x1) throw new ZipError(`${entry.name} is encrypted`);
-  if (entry.method !== 0 && entry.method !== 8) throw new ZipError(`${entry.name} uses compression method ${entry.method}`);
-  if (entry.compressedSize > limits.maxCompressedBytes) throw new ZipError(`${entry.name} is ${entry.compressedSize} bytes compressed`);
-  if (entry.size > limits.maxUncompressedBytes) throw new ZipError(`${entry.name} is ${entry.size} bytes uncompressed`);
-  const nameBytes = new TextEncoder().encode(entry.name).byteLength;
+  const name = label(entry);
+  if (entry.flags & 0x1) throw new ZipError(`${name} is encrypted`);
+  if (entry.method !== 0 && entry.method !== 8) throw new ZipError(`${name} uses compression method ${entry.method}`);
+  if (entry.compressedSize > limits.maxCompressedBytes) throw new ZipError(`${name} is ${entry.compressedSize} bytes compressed`);
+  if (entry.size > limits.maxUncompressedBytes) throw new ZipError(`${name} is ${entry.size} bytes uncompressed`);
+  const nameBytes = entry.nameBytes.byteLength;
   const limit = directory.directoryOffset;
-  if (entry.localHeaderOffset + LOCAL_SIZE + nameBytes + entry.compressedSize > limit) throw new ZipError(`${entry.name} runs into the central directory`);
+  if (entry.localHeaderOffset + LOCAL_SIZE + nameBytes + entry.compressedSize > limit) throw new ZipError(`${name} runs into the central directory`);
 
   const first = Math.min(LOCAL_SIZE + nameBytes + LOCAL_EXTRA_ALLOWANCE + entry.compressedSize, limit - entry.localHeaderOffset);
   let bytes = await source.read(entry.localHeaderOffset, first);
   const header = view(bytes);
-  if (header.getUint32(0, true) !== LOCAL_SIGNATURE) throw new ZipError(`bad local header for ${entry.name}`);
-  if (header.getUint16(26, true) !== nameBytes) throw new ZipError(`local header of ${entry.name} names another entry`);
+  if (header.getUint32(0, true) !== LOCAL_SIGNATURE) throw new ZipError(`bad local header for ${name}`);
+  if (header.getUint16(26, true) !== nameBytes || !sameBytes(bytes.subarray(LOCAL_SIZE, LOCAL_SIZE + nameBytes), entry.nameBytes)) {
+    throw new ZipError(`local header of ${name} names another entry`);
+  }
   const dataStart = LOCAL_SIZE + nameBytes + header.getUint16(28, true);
   const dataEnd = dataStart + entry.compressedSize;
-  if (entry.localHeaderOffset + dataEnd > limit) throw new ZipError(`${entry.name} runs into the central directory`);
+  if (entry.localHeaderOffset + dataEnd > limit) throw new ZipError(`${name} runs into the central directory`);
   if (dataEnd > bytes.byteLength) {
     bytes = join(bytes, await source.read(entry.localHeaderOffset + bytes.byteLength, dataEnd - bytes.byteLength));
   }
@@ -199,10 +206,10 @@ export async function readEntry(
     try {
       content = inflateRawSync(stored, { maxOutputLength: limits.maxUncompressedBytes });
     } catch (error) {
-      throw new ZipError(`${entry.name} does not inflate: ${error instanceof Error ? error.message : String(error)}`);
+      throw new ZipError(`${name} does not inflate: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  if (content.byteLength !== entry.size) throw new ZipError(`${entry.name} is ${content.byteLength} bytes, not the ${entry.size} stated`);
-  if (crc32(content) !== entry.crc32) throw new ZipError(`${entry.name} fails its CRC-32`);
+  if (content.byteLength !== entry.size) throw new ZipError(`${name} is ${content.byteLength} bytes, not the ${entry.size} stated`);
+  if (crc32(content) !== entry.crc32) throw new ZipError(`${name} fails its CRC-32`);
   return content;
 }
