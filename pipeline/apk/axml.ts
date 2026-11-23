@@ -12,8 +12,13 @@
 export interface AxmlLimits {
   maxBytes: number;
   maxStrings: number;
-  /** Longer strings are kept as unreadable (`null`), not truncated. */
+  /** Longer strings, in characters or in UTF-8 bytes, are kept as unreadable (`null`), not truncated. */
   maxStringLength: number;
+  /**
+   * Characters decoded over the whole document. Offsets may share or overlap
+   * strings, so this, not the string count, bounds the work a pool can ask for.
+   */
+  maxDecodedChars: number;
   maxElements: number;
   maxAttributesPerElement: number;
   maxDepth: number;
@@ -23,6 +28,7 @@ export const AXML_LIMITS: Readonly<AxmlLimits> = {
   maxBytes: 4 * 1024 * 1024,
   maxStrings: 200_000,
   maxStringLength: 4096,
+  maxDecodedChars: 2_000_000,
   maxElements: 50_000,
   maxAttributesPerElement: 256,
   maxDepth: 32,
@@ -107,6 +113,9 @@ class StringPool {
   readonly #stringsStart: number;
   readonly #utf8: boolean;
   readonly #maxLength: number;
+  readonly #maxDecoded: number;
+  #decoded = 0;
+  /** Decoded strings by byte offset, so offsets that share a string decode it once. */
   readonly #cache = new Map<number, string | null>();
   readonly count: number;
 
@@ -122,6 +131,7 @@ class StringPool {
     this.#stringsStart = start + view.u32(start + 20);
     this.#utf8 = (flags & UTF8_FLAG) !== 0;
     this.#maxLength = limits.maxStringLength;
+    this.#maxDecoded = limits.maxDecodedChars;
     if (this.count > limits.maxStrings || styleCount > limits.maxStrings) throw new AxmlError(`string pool holds ${this.count} strings`);
     if (start + headerSize + (this.count + styleCount) * 4 > this.#end) throw new AxmlError("string offsets run past the pool");
     if (this.count > 0 && (this.#stringsStart < start + headerSize || this.#stringsStart >= this.#end)) {
@@ -132,12 +142,17 @@ class StringPool {
   /** The string at `index`; null for a string over the length limit. Throws on a bad index or a malformed entry. */
   get(index: number): string | null {
     if (index >= this.count) throw new AxmlError(`string index ${index} outside a pool of ${this.count}`);
-    const cached = this.#cache.get(index);
-    if (cached !== undefined) return cached;
     const at = this.#stringsStart + this.#view.u32(this.#offsets + index * 4);
+    const cached = this.#cache.get(at);
+    if (cached !== undefined) return cached;
     const text = this.#utf8 ? this.#utf8At(at) : this.#utf16At(at);
-    this.#cache.set(index, text);
+    this.#cache.set(at, text);
     return text;
+  }
+
+  #spend(amount: number): void {
+    this.#decoded += amount;
+    if (this.#decoded > this.#maxDecoded) throw new AxmlError(`string pool decoded more than ${this.#maxDecoded} characters`);
   }
 
   #within(at: number, size: number): void {
@@ -159,7 +174,8 @@ class StringPool {
     const characters = lengthByte();
     const byteLength = lengthByte();
     this.#within(position, byteLength);
-    if (characters > this.#maxLength) return null;
+    if (characters > this.#maxLength || byteLength > this.#maxLength) return null;
+    this.#spend(byteLength);
     return new TextDecoder("utf-8").decode(this.#bytes.subarray(position, position + byteLength));
   }
 
@@ -175,6 +191,7 @@ class StringPool {
     }
     this.#within(position, units * 2);
     if (units > this.#maxLength) return null;
+    this.#spend(units);
     const codes: number[] = [];
     for (let i = 0; i < units; i++) codes.push(this.#view.u16(position + i * 2));
     return String.fromCharCode(...codes);

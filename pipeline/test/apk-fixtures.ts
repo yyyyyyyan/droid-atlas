@@ -233,6 +233,84 @@ export function encodeAxml(root: FakeElement, options: EncodeOptions = {}): Uint
   return Uint8Array.from(out.bytes);
 }
 
+/**
+ * A document whose string pool is written by hand: `offsets` point into
+ * `data` as given, so several may point at one string or into the middle of
+ * another. One element per 200 strings carries an attribute whose value is
+ * each string in turn.
+ */
+export function pooledAxml(offsets: number[], data: Uint8Array, utf8: boolean): Uint8Array {
+  const body = new Writer();
+  const header = 28;
+  let poolSize = header + offsets.length * 4 + data.length;
+  poolSize += (4 - (poolSize % 4)) % 4;
+  body.u16(0x0001);
+  body.u16(header);
+  body.u32(poolSize);
+  body.u32(offsets.length);
+  body.u32(0);
+  body.u32(utf8 ? 1 << 8 : 0);
+  body.u32(header + offsets.length * 4);
+  body.u32(0);
+  for (const offset of offsets) body.u32(offset);
+  body.put(data);
+  while (body.bytes.length % 4) body.u8(0);
+  const element = (name: number, values: number[]): void => {
+    body.u16(0x0102);
+    body.u16(16);
+    body.u32(16 + 20 + values.length * 20);
+    body.u32(1);
+    body.u32(0xffffffff);
+    body.u32(0xffffffff);
+    body.u32(name);
+    body.u16(20);
+    body.u16(20);
+    body.u16(values.length);
+    body.u16(0);
+    body.u16(0);
+    body.u16(0);
+    for (const value of values) {
+      body.u32(0xffffffff);
+      body.u32(0);
+      body.u32(value);
+      body.u16(8);
+      body.u8(0);
+      body.u8(0x03);
+      body.u32(value);
+    }
+  };
+  const end = (name: number): void => {
+    body.u16(0x0103);
+    body.u16(16);
+    body.u32(24);
+    body.u32(1);
+    body.u32(0xffffffff);
+    body.u32(0xffffffff);
+    body.u32(name);
+  };
+  element(0, []);
+  for (let start = 0; start < offsets.length; start += 200) {
+    element(0, Array.from({ length: Math.min(200, offsets.length - start) }, (_, i) => start + i));
+    end(0);
+  }
+  end(0);
+  const out = new Writer();
+  out.u16(0x0003);
+  out.u16(8);
+  out.u32(8 + body.bytes.length);
+  out.put(body.bytes);
+  return Uint8Array.from(out.bytes);
+}
+
+/** UTF-16 string data: `count` code units, each `unit`, after a length prefix of `length`. */
+export function utf16Data(length: number, count: number, unit: number): Uint8Array {
+  const out = new Writer();
+  out.u16(length);
+  for (let i = 0; i < count; i++) out.u16(unit);
+  out.u16(0);
+  return Uint8Array.from(out.bytes);
+}
+
 export interface ZipFile {
   name: string;
   data: Uint8Array;

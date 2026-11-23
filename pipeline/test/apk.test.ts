@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EVIDENCE_LEVELS } from "../../schema/catalog.ts";
-import { AxmlError, parseAxml } from "../apk/axml.ts";
+import { AXML_LIMITS, AxmlError, parseAxml, type AxmlLimits } from "../apk/axml.ts";
 import { HttpReadError, openPackage, packageHost } from "../apk/http.ts";
 import { ManifestError, readManifest } from "../apk/manifest.ts";
 import { PackageReadError, readPackage } from "../apk/read.ts";
 import { findEntry, readDirectory, readEntry, type RangeSource, ZipError } from "../apk/zip.ts";
-import { buildZip, el, encodeAxml, rangeServer, type FakeElement, type ZipFile } from "./apk-fixtures.ts";
+import { buildZip, el, encodeAxml, pooledAxml, rangeServer, utf16Data, type FakeElement, type ZipFile } from "./apk-fixtures.ts";
 
 const PKG = "org.example.tiles";
 const FDROID = "https://f-droid.org/repo/org.example.tiles_7.apk";
@@ -211,8 +211,30 @@ test("binary XML limits bound nesting, element count and string length", () => {
   assert.throws(() => parseAxml(new Uint8Array(5 * 1024 * 1024)), /document of/);
 });
 
-function limits() {
-  return { maxBytes: 1 << 20, maxStrings: 1000, maxStringLength: 4096, maxElements: 1000, maxAttributesPerElement: 64, maxDepth: 32 };
+test("strings are decoded once per offset, and the document's decoded total is bounded", () => {
+  const long = utf16Data(4000, 4000, 0x41);
+  const sameString = pooledAxml(Array.from({ length: 4000 }, () => 0), long, false);
+  const root = parseAxml(sameString, { ...limits(), maxDecodedChars: 10_000 });
+  assert.equal(root.children.length, 20);
+  assert.deepEqual(root.children[0]?.attributes[0]?.value, { type: "string", value: "A".repeat(4000) });
+
+  const overlapping = pooledAxml(
+    Array.from({ length: 4000 }, (_, i) => i * 2),
+    utf16Data(3000, 8000, 3000),
+    false,
+  );
+  assert.throws(() => parseAxml(overlapping, { ...limits(), maxDecodedChars: 100_000 }), /decoded/);
+  assert.throws(() => parseAxml(overlapping), /decoded/, "the default bound holds too");
+});
+
+test("a UTF-8 string is bounded by its bytes as well as its stated characters", () => {
+  const data = Uint8Array.from([1, 0x80 | (5000 >> 8), 5000 & 0xff, ...new Uint8Array(5000).fill(0x41), 0]);
+  const root = parseAxml(pooledAxml([0], data, true));
+  assert.deepEqual(root.children[0]?.attributes[0]?.value, { type: "string", value: null });
+});
+
+function limits(): AxmlLimits {
+  return { ...AXML_LIMITS };
 }
 
 test("the zip directory and one entry are read by range, and nothing else", async () => {
