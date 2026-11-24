@@ -16,7 +16,7 @@
  * flag that configuration does not set is off, as aconfig leaves it.
  */
 import { readFileSync } from "node:fs";
-import { childElements, parseXml, textContent, type XmlElement } from "./xml.ts";
+import { childElements, parseXml, quoted, textContent, type XmlElement } from "./xml.ts";
 
 const ANDROID_NS = "http://schemas.android.com/apk/res/android";
 
@@ -92,12 +92,23 @@ function androidAttribute(element: XmlElement, local: string, prefix: string): s
   return element.attributes.get(`${prefix}:${local}`) ?? null;
 }
 
-/** The prefix the root element binds to Android's namespace. */
+/**
+ * The one prefix the root element binds to Android's namespace. A document
+ * that binds it twice, or in which another element binds that prefix or the
+ * namespace again, is refused: attributes are found by that prefix alone.
+ */
 function androidPrefix(root: XmlElement): string {
-  for (const [attribute, value] of root.attributes) {
-    if (attribute.startsWith("xmlns:") && value === ANDROID_NS) return attribute.slice(6);
-  }
-  throw new Error("the manifest does not bind Android's namespace");
+  const prefixes = [...root.attributes].filter(([attribute, value]) => attribute.startsWith("xmlns:") && value === ANDROID_NS).map(([attribute]) => attribute.slice(6));
+  const [prefix] = prefixes;
+  if (prefix === undefined || prefixes.length > 1) throw new Error("the manifest does not bind Android's namespace to exactly one prefix");
+  const check = (element: XmlElement): void => {
+    for (const [attribute, value] of element.attributes) {
+      if (attribute === `xmlns:${prefix}` || (attribute.startsWith("xmlns") && value === ANDROID_NS)) throw new Error(`<${quoted(element.name)}> binds Android's namespace or prefix again`);
+    }
+    childElements(element).forEach(check);
+  };
+  childElements(root).forEach(check);
+  return prefix;
 }
 
 /** Every `<permission>` element directly under `<manifest>`. Throws on a declaration that is not well formed. */
@@ -111,9 +122,9 @@ export function permissionDeclarations(manifestXml: string): Declaration[] {
       const name = androidAttribute(element, "name", prefix);
       const protectionLevel = androidAttribute(element, "protectionLevel", prefix) ?? "normal";
       const featureFlag = androidAttribute(element, "featureFlag", prefix);
-      if (!name || !PERMISSION_NAME.test(name) || name.length > 255) throw new Error(`a permission named ${JSON.stringify(name)}`);
-      if (!isProtectionLevel(protectionLevel)) throw new Error(`${name}: unknown protection level ${JSON.stringify(protectionLevel)}`);
-      if (featureFlag !== null && !FLAG_NAME.test(featureFlag.replace(/^!/, ""))) throw new Error(`${name}: malformed feature flag ${JSON.stringify(featureFlag)}`);
+      if (!name || !PERMISSION_NAME.test(name) || name.length > 255) throw new Error(`a permission named ${JSON.stringify(quoted(name ?? ""))}`);
+      if (!isProtectionLevel(protectionLevel)) throw new Error(`${name}: unknown protection level ${JSON.stringify(quoted(protectionLevel))}`);
+      if (featureFlag !== null && !FLAG_NAME.test(featureFlag.replace(/^!/, ""))) throw new Error(`${name}: malformed feature flag ${JSON.stringify(quoted(featureFlag))}`);
       return { name, protectionLevel, label: androidAttribute(element, "label", prefix), featureFlag };
     });
 }

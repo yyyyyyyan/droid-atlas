@@ -137,6 +137,11 @@ test("malformed manifests and strings are refused", () => {
     ["two bases", `<manifest xmlns:android="http://schemas.android.com/apk/res/android"><permission android:name="a.B" android:protectionLevel="normal|dangerous"/></manifest>`, /unknown protection level/],
     ["bad flag", `<manifest xmlns:android="http://schemas.android.com/apk/res/android"><permission android:name="a.B" android:featureFlag="Not A Flag"/></manifest>`, /feature flag/],
     ["empty", ``, /no root/],
+    ["forbidden character reference", `<manifest xmlns:android="http://schemas.android.com/apk/res/android"><permission android:name="a.B&#x1;"/></manifest>`, /XML does not allow/],
+    ["noncharacter reference", `<manifest xmlns:android="http://schemas.android.com/apk/res/android"><permission android:name="a.B&#xFFFE;"/></manifest>`, /XML does not allow/],
+    ["prefix rebound", `<manifest xmlns:android="http://schemas.android.com/apk/res/android"><permission xmlns:android="urn:other" android:name="a.B"/></manifest>`, /binds Android/],
+    ["namespace bound again", `<manifest xmlns:android="http://schemas.android.com/apk/res/android"><permission xmlns:a="http://schemas.android.com/apk/res/android" a:name="a.B" a:protectionLevel="signature"/></manifest>`, /binds Android/],
+    ["namespace bound twice at the root", `<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:a="http://schemas.android.com/apk/res/android"/>`, /exactly one prefix/],
   ];
   for (const [what, xml, error] of cases) assert.throws(() => permissionDeclarations(xml), error, what);
   assert.throws(() => stringResources(`<resources><string>no name</string></resources>`), /no name/);
@@ -144,6 +149,17 @@ test("malformed manifests and strings are refused", () => {
   assert.throws(() => parseXml("<a>" + "<b>".repeat(40) + "</b>".repeat(40) + "</a>"), /nested deeper/);
   assert.throws(() => parseXml("<a/>", { characters: 3, elements: 10, depth: 4, attributesPerElement: 4 }), /longer than/);
   assert.throws(() => parseXml("<a>" + "<b/>".repeat(20) + "</a>", { characters: 1000, elements: 10, depth: 4, attributesPerElement: 4 }), /more than 10 elements/);
+  assert.equal(parseXml("<a b=\"&#x9;&#x10FFFF;\"/>").attributes.get("b"), "\t\u{10FFFF}", "every character XML allows is read");
+
+  const huge = "x".repeat(7_000_000);
+  for (const document of [`<a ${huge}/>`, `<a ${huge.slice(0, 300)}="1"/>`, `<manifest xmlns:android="http://schemas.android.com/apk/res/android"><permission android:name="${huge.slice(0, 2000)} y"/></manifest>`]) {
+    try {
+      permissionDeclarations(document);
+      assert.fail("refused");
+    } catch (error) {
+      assert.ok(error instanceof Error && error.message.length < 300, `a message of ${error instanceof Error ? error.message.length : 0} characters`);
+    }
+  }
 });
 
 test("release flags come from every configuration a release inherits, and one set both ways is refused", () => {

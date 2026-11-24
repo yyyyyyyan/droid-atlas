@@ -2,8 +2,10 @@
  * A small, strict reader for text XML: elements, attributes, text, comments,
  * CDATA and processing instructions. Enough for Android's resource and
  * manifest files, and nothing more: a document type declaration, an entity
- * other than the five predefined ones and a character reference, an
- * unclosed or mismatched element, or a document past its bounds is refused.
+ * other than the five predefined ones and a character reference to a
+ * character XML 1.0 allows, an unclosed or mismatched element, a name longer
+ * than `NAME_LIMIT`, or a document past its bounds is refused. An error
+ * quotes at most the first 40 characters of a name.
  * Nothing in the input is ever resolved against anything outside it.
  */
 
@@ -34,6 +36,19 @@ export class XmlError extends Error {
 }
 
 const NAME = /[A-Za-z_][A-Za-z0-9_.:-]*/y;
+
+/** Longest element or attribute name read. */
+export const NAME_LIMIT = 255;
+
+/** A name as an error message quotes it: cut to 40 characters. */
+export function quoted(name: string): string {
+  return name.length > 40 ? `${name.slice(0, 40)}…` : name;
+}
+
+/** The characters XML 1.0 allows (`Char`); a character reference to any other is refused. */
+function isXmlChar(code: number): boolean {
+  return code === 0x9 || code === 0xa || code === 0xd || (code >= 0x20 && code <= 0xd7ff) || (code >= 0xe000 && code <= 0xfffd) || (code >= 0x10000 && code <= 0x10ffff);
+}
 const PREDEFINED: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
 
 function decode(text: string, at: number): string {
@@ -41,9 +56,9 @@ function decode(text: string, at: number): string {
     if (entity === undefined) throw new XmlError("a bare ampersand", at);
     if (Object.hasOwn(PREDEFINED, entity)) return PREDEFINED[entity] ?? "";
     const numeric = /^#(?:x([0-9A-Fa-f]{1,6})|([0-9]{1,7}))$/.exec(entity);
-    if (!numeric) throw new XmlError(`an unknown entity ${whole}`, at);
+    if (!numeric) throw new XmlError(`an unknown entity ${quoted(whole)}`, at);
     const code = numeric[1] !== undefined ? Number.parseInt(numeric[1], 16) : Number(numeric[2]);
-    if (code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) throw new XmlError(`a character reference to ${code}`, at);
+    if (!isXmlChar(code)) throw new XmlError(`a character reference to ${code}, which XML does not allow`, at);
     return String.fromCodePoint(code);
   });
 }
@@ -70,6 +85,7 @@ export function parseXml(text: string, limits: XmlLimits = DEFAULT_XML_LIMITS): 
     NAME.lastIndex = position;
     const match = NAME.exec(text);
     if (!match) throw new XmlError("a missing name", position);
+    if (match[0].length > NAME_LIMIT) throw new XmlError(`a name longer than ${NAME_LIMIT} characters`, position);
     position = NAME.lastIndex;
     return match[0];
   };
@@ -96,10 +112,10 @@ export function parseXml(text: string, limits: XmlLimits = DEFAULT_XML_LIMITS): 
       position += 2;
       const closing = name();
       skipSpace();
-      if (text.charAt(position) !== ">") throw new XmlError(`a malformed end tag </${closing}`, at);
+      if (text.charAt(position) !== ">") throw new XmlError(`a malformed end tag </${quoted(closing)}`, at);
       position++;
       const open = stack.pop();
-      if (!open || open.name !== closing) throw new XmlError(`</${closing}> closing ${open ? `<${open.name}>` : "nothing"}`, at);
+      if (!open || open.name !== closing) throw new XmlError(`</${quoted(closing)}> closing ${open ? `<${quoted(open.name)}>` : "nothing"}`, at);
     } else if (text.charAt(position) === "<") {
       position++;
       if (root && stack.length === 0) throw new XmlError("a second root element", at);
@@ -109,18 +125,18 @@ export function parseXml(text: string, limits: XmlLimits = DEFAULT_XML_LIMITS): 
         const before = position;
         skipSpace();
         if (text.startsWith("/>", position) || text.charAt(position) === ">") break;
-        if (position === before) throw new XmlError(`a malformed start tag <${element.name}`, at);
+        if (position === before) throw new XmlError(`a malformed start tag <${quoted(element.name)}`, at);
         const attribute = name();
         skipSpace();
-        if (text.charAt(position) !== "=") throw new XmlError(`attribute ${attribute} without a value`, position);
+        if (text.charAt(position) !== "=") throw new XmlError(`attribute ${quoted(attribute)} without a value`, position);
         position++;
         skipSpace();
         const quote = text.charAt(position);
-        if (quote !== '"' && quote !== "'") throw new XmlError(`attribute ${attribute} without quotes`, position);
+        if (quote !== '"' && quote !== "'") throw new XmlError(`attribute ${quoted(attribute)} without quotes`, position);
         position++;
-        const raw = until(quote, `attribute ${attribute}`);
-        if (raw.includes("<")) throw new XmlError(`"<" in attribute ${attribute}`, position);
-        if (element.attributes.has(attribute)) throw new XmlError(`attribute ${attribute} given twice`, position);
+        const raw = until(quote, `attribute ${quoted(attribute)}`);
+        if (raw.includes("<")) throw new XmlError(`"<" in attribute ${quoted(attribute)}`, position);
+        if (element.attributes.has(attribute)) throw new XmlError(`attribute ${quoted(attribute)} given twice`, position);
         element.attributes.set(attribute, decode(raw, position));
         if (element.attributes.size > limits.attributesPerElement) throw new XmlError(`more than ${limits.attributesPerElement} attributes`, at);
       }
@@ -142,7 +158,7 @@ export function parseXml(text: string, limits: XmlLimits = DEFAULT_XML_LIMITS): 
       addText(decode(raw, at), at);
     }
   }
-  if (stack.length > 0) throw new XmlError(`an unclosed element <${stack.at(-1)?.name ?? ""}>`, position);
+  if (stack.length > 0) throw new XmlError(`an unclosed element <${quoted(stack.at(-1)?.name ?? "")}>`, position);
   if (!root) throw new XmlError("no root element", position);
   return root;
 }
