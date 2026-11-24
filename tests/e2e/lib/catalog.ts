@@ -452,11 +452,13 @@ export function sample<T>(items: readonly T[], count: number, seed: number): T[]
   return picked;
 }
 
-/** What one index's details shards hold for an app: its long description and its permission names, where there are any. */
-export function detailsOf(build: Build, appId: string, origin: "fdroid" | "izzy"): { description?: string; permissions?: string[] } {
+export interface DetailsOf { description?: string; permissions?: string[]; permissionCaps?: Record<string, number> }
+
+/** What one index's details shards hold for an app: its long description, its permission names and their caps, where there are any. */
+export function detailsOf(build: Build, appId: string, origin: "fdroid" | "izzy"): DetailsOf {
   for (const file of build.manifest.files) {
     if (file.role !== "details" || file.origin !== origin) continue;
-    const shard = readJson<Record<string, { description?: string; permissions?: string[] }>>(join(build.dir, file.path));
+    const shard = readJson<Record<string, DetailsOf>>(join(build.dir, file.path));
     if (Object.hasOwn(shard, appId)) return shard[appId] ?? {};
   }
   return {};
@@ -469,7 +471,7 @@ export function permissionNamesOf(build: Build, appId: string, origin: "fdroid" 
 
 /** Android's statements about the permissions apps declare, as the build's android part carries them. */
 export interface AndroidPart {
-  android: { version: string; tag: string; commit: string };
+  android: { version: string; apiLevel: number; tag: string; commit: string };
   permissions: Record<string, { protectionLevel: string; label: string | null }>;
 }
 

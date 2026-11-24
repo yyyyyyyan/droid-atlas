@@ -15,17 +15,20 @@ import type { Page } from "@playwright/test";
 import type { Build, ManifestFile } from "./catalog.ts";
 
 export interface PartChange {
-  role: "atlas" | "index" | "github" | "source" | "icons";
+  role: "atlas" | "index" | "github" | "source" | "icons" | "details";
   /** Which part of that role, for roles with several ("fdroid", "izzy", a catalog's id). */
   origin?: string;
+  /** For details shards, of which each origin has many: the app whose entry the changed shard holds. */
+  holding?: string;
   /** Changes the parsed part in place. */
   change(part: Record<string, unknown>): void;
 }
 
 export async function serveChanged(page: Page, build: Build, changes: readonly PartChange[]): Promise<void> {
   const manifest = JSON.parse(JSON.stringify(build.manifest)) as Build["manifest"];
-  for (const { role, origin, change } of changes) {
-    const listed = manifest.files.find((file: ManifestFile) => file.role === role && (origin === undefined || file.origin === origin));
+  for (const { role, origin, holding, change } of changes) {
+    const listed = manifest.files.find((file: ManifestFile) => file.role === role && (origin === undefined || file.origin === origin)
+      && (holding === undefined || Object.hasOwn(JSON.parse(readFileSync(join(build.dir, file.path), "utf8")) as object, holding)));
     if (!listed) throw new Error(`the manifest lists no ${role} part${origin ? ` for ${origin}` : ""}`);
     const part = JSON.parse(readFileSync(join(build.dir, listed.path), "utf8")) as Record<string, unknown>;
     change(part);
