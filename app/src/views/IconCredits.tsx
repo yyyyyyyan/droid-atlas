@@ -41,6 +41,7 @@ import { keyboardOpen } from "../ui/keyboard.ts";
 import { Icon } from "../ui/Icon.tsx";
 import { PageHead } from "../ui/LevelHead.tsx";
 import { RouteLink } from "../ui/Link.tsx";
+import { whenIdle } from "../ui/idle.ts";
 import { memo } from "../ui/memo.ts";
 import { plateClass, sampleGlyph, type Glyph } from "../ui/plate.ts";
 import { registerAnchorSource, stickyTop, takeExpectedAnchor } from "../ui/scroll.ts";
@@ -85,16 +86,6 @@ export function nextRows(sorted: readonly IconRecord[], made: ReadonlySet<string
   const first = missing.filter((record) => wanted.has(record.app));
   const rest = missing.filter((record) => !wanted.has(record.app));
   return [...first, ...rest].slice(0, count).map((record) => record.app);
-}
-
-/** Runs a task when the page has nothing more pressing to do, and soon in any case. Returns how to call it off. */
-function whenIdle(task: () => void): () => void {
-  if (typeof requestIdleCallback === "function") {
-    const handle = requestIdleCallback(task, { timeout: 300 });
-    return () => cancelIdleCallback(handle);
-  }
-  const timer = setTimeout(task, 30);
-  return () => clearTimeout(timer);
 }
 
 /** A credit's icon, shown once it has loaded, on the plate it needs (`ui/plate.ts`). */

@@ -27,6 +27,7 @@ import { applySettings, createSettingsStore } from "./state/settings.ts";
 import { listenForStorageChanges } from "./state/storage.ts";
 import { createLastVisit, createVisitStore } from "./state/visit.ts";
 import { Mark } from "./ui/Icon.tsx";
+import { whenIdle } from "./ui/idle.ts";
 import { captureScroll } from "./ui/scroll.ts";
 import "./styles/index.css";
 
@@ -34,6 +35,8 @@ const settings = createSettingsStore();
 const pins = createPinsStore();
 const savedStore = createSavedStore();
 const visit = createLastVisit(createVisitStore());
+/** How long after the first view the owner and license index waits for an idle moment before it is built anyway. */
+const FACT_INDEX_WITHIN_MS = 3000;
 applySettings(settings);
 listenForStorageChanges();
 watchInstall();
@@ -145,12 +148,19 @@ function Boot() {
   }, [failure]);
 
   const shown = state.phase === "ready" ? state.services.build.version.hash : null;
+  const model = state.phase === "ready" ? state.services.model : null;
   useEffect(() => {
     if (shown === null) return;
     /* The frame after the first commit is the first one that can show the list; the mark is what the paint budget is measured against. */
     requestAnimationFrame(() => requestAnimationFrame(() => performance.mark("atlas:first-view")));
     afterLaunch(new URL("./data/", document.baseURI).href, shown);
   }, [shown]);
+  /* The owner and license index is built while the page is idle, so the first app opened does not wait for it; whatever needs it sooner builds it then. */
+  useEffect(() => (model ? whenIdle(() => {
+    const start = performance.now();
+    model.facts();
+    performance.measure("atlas:fact-index", { start, end: performance.now() });
+  }, FACT_INDEX_WITHIN_MS) : undefined), [model]);
 
   if (state.phase === "ready") {
     return <ServicesContext.Provider value={state.services}><App /></ServicesContext.Provider>;
