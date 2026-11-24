@@ -94,9 +94,20 @@ describe("a license token", () => {
     expect(licenseTerms("(GPL-2.0-or-later WITH Font-exception-2.0) OR MIT")).toEqual([{ term: "GPL-2.0", key: "license:gpl-2.0" }, { term: "MIT", key: "license:mit" }]);
   });
 
-  test("is none for a statement that there is no license", () => {
+  test("is none for a statement that there is no license, nor for one that says so of any part", () => {
     expect(licenseTerms("Proprietary")).toEqual([]);
-    expect(licenseTerms("Proprietary OR MIT")).toEqual([{ term: "MIT", key: "license:mit" }]);
+    expect(licenseTerms("Proprietary OR MIT")).toEqual([]);
+    expect(licenseTerms("Proprietary AND MIT")).toEqual([]);
+  });
+
+  test("reads only SPDX's capitals as operators: small words are part of the license's name", () => {
+    expect(licenseTerms("Apache 2.0 with Commons Clause")).toEqual([{ term: "Apache 2.0 with Commons Clause", key: "license:apache-2.0-with-commons-clause" }]);
+    expect(licenseTerms("GPL-3.0 or later").map((term) => term.key)).toEqual(["license:gpl-3.0-or-later"]);
+    expect(licenseTerms("MIT and Apache-2.0").map((term) => term.key)).toEqual(["license:mit-and-apache-2.0"]);
+  });
+
+  test("names a license as the source spells it, with its spaces as one", () => {
+    expect(licenseTerms("Source available (no commercial use)")).toEqual([{ term: "Source available no commercial use", key: "license:source-available-no-commercial-use" }]);
   });
 
   test("a statement is bare when none of its licenses carries a version qualifier", () => {
@@ -262,10 +273,10 @@ describe("the sheet's license row", () => {
     ]);
   });
 
-  test("other letters for the same license are another statement, credited as written", () => {
+  test("other letters for the same license are another statement, credited as written; the line in the list's own words carries the link", () => {
     expect(shown("spaced")).toEqual([
-      { value: "Apache 2.0", sources: ["awesome-shizuku"], links: ["Apache-2.0, 3 apps"], valueIsLink: false },
-      { value: "Apache-2.0", sources: ["GitHub"], links: [], valueIsLink: false },
+      { value: "Apache 2.0", sources: ["awesome-shizuku"], links: [], valueIsLink: false },
+      { value: "Apache-2.0", sources: ["GitHub"], links: ["Apache-2.0, 3 apps"], valueIsLink: true },
     ]);
   });
 
@@ -325,10 +336,11 @@ describe("the sheet's repository owner row", () => {
     expect(row("eve")?.lines[0]?.sources).toEqual(["F-Droid"]);
   });
 
-  test("names nobody, rather than a guess, in a catalog built before the repository's source was recorded", () => {
+  test("is left out, rather than shown without a source, in a catalog built before the repository's source was recorded", () => {
     const old = entryOf("old");
     delete (old.app.evidence as { repository?: unknown }).repository;
-    expect(row("old")?.lines[0]?.sources).toEqual([]);
+    expect(row("old")).toBeNull();
+    expect(row("oak")?.lines[0]?.sources).toEqual(["Android FOSS"]);
   });
 
   test("is absent for an owner with no other entry", () => {

@@ -67,19 +67,25 @@ function bareTerm(term: string): string {
   return term.replace(/[()]/g, "").trim().replace(QUALIFIER, "").trim();
 }
 
+/** A license term as its token spells it. */
+function foldTerm(term: string): string {
+  return bareTerm(term).toLowerCase().replace(/\s+/g, "-");
+}
+
 /** The token key of one license term, or null when the term names no license a token can carry. */
 export function licenseKey(term: string): string | null {
-  const folded = bareTerm(term).toLowerCase().replace(/\s+/g, "-");
+  const folded = foldTerm(term);
   if (!LICENSE_KEY.test(folded) || NOT_A_LICENSE.has(folded)) return null;
   return `${LICENSE_PREFIX}${folded}`;
 }
 
-/** The terms of a stated license: what `OR`, `AND` and `/` join, each without the exception a `WITH` adds to it. */
+/** The terms of a stated license: what `OR`, `AND` and `/` join, each without the exception a `WITH` adds to it. Only SPDX's capitals are operators. */
 function termsOf(value: string): string[] {
   return value
     .replace(/[()]/g, " ")
-    .split(/\s+(?:OR|AND)\s+|\s*\/\s*/i)
-    .map((term) => (term.split(/\s+WITH\s+/i)[0] ?? "").trim())
+    .replace(/\s+/g, " ")
+    .split(/\s+(?:OR|AND)\s+|\s*\/\s*/)
+    .map((term) => (term.split(/\s+WITH\s+/)[0] ?? "").trim())
     .filter(Boolean);
 }
 
@@ -99,14 +105,20 @@ export interface LicenseTerm {
  *   each is named.
  * - "A AND B" applies both, to different parts of the app: the app is under
  *   each, so each is named.
- * - "A WITH E" is license A with an exception that only adds permissions: A
- *   is named; the exception is not a license and is not.
+ * - "A WITH E" is license A with an SPDX exception, which only adds
+ *   permissions: A is named; the exception is not a license and is not.
  *
- * A term that names no license ("Proprietary") is left out.
+ * Only SPDX's capitals are operators: in "Apache 2.0 with Commons Clause" or
+ * "GPL-3.0 or later" the small words are part of what the source calls its
+ * license, which is then a license of its own. A statement with a term that
+ * says there is no license ("Proprietary AND MIT") names none, since what it
+ * says of the app as a whole is unclear.
  */
 export function licenseTerms(value: string): LicenseTerm[] {
+  const all = termsOf(value);
+  if (all.some((term) => NOT_A_LICENSE.has(foldTerm(term)))) return [];
   const terms: LicenseTerm[] = [];
-  for (const term of termsOf(value)) {
+  for (const term of all) {
     const key = licenseKey(term);
     if (key && !terms.some((known) => known.key === key)) terms.push({ term: bareTerm(term), key });
   }
