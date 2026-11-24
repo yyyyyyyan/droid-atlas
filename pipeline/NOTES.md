@@ -324,7 +324,9 @@ files 87, apps 78, comms 76, device 56, guides 13.
   an Android FOSS app listing (the list's scope is FOSS; resources excluded).
   The facet is the most restrictive statement.
 - `noInternet` and `noAntiFeatures` are true only when every index carrying the
-  app agrees; null without an index.
+  app agrees; null without an index. Internet access, like Shizuku's
+  permission and the permission count, is read from both `uses-permission`
+  and `uses-permission-sdk-23`.
 - `archived` is true when GitHub says archived or the awesome-shizuku archive
   lists the app; false when GitHub says not archived; null otherwise.
 
@@ -618,12 +620,21 @@ node scripts/vendor-android-permissions.ts android-17.0.0_r1 --release-config cp
   `c85f4aebe46714235599a9bd6430a0fe30c6e8d5`) together with every
   configuration it inherits; a flag none of them sets is off, as aconfig
   leaves it. The script refuses a flag two of them set differently, and a
-  name two kept declarations define.
+  name two kept declarations define. These values are the release's
+  **default configuration**. Of the 118 flags the declarations depend on,
+  `cp2a` and the configurations it inherits set 95, every one of them
+  `READ_ONLY`, which no device can change (`READ_WRITE` values for some of
+  them exist only in `trunk_staging`, which `cp2a` does not inherit). The
+  other 23 are off in the release; whether a device may turn one on depends
+  on its declaration, which the script does not read.
 - **Refused**: anything the XML reader does not accept (a document type,
   an unknown entity, an unclosed element, past its bounds), a name or flag
   outside its pattern, a level word Android's reference for
   `R.attr.protectionLevel` does not list. A label that is not one line of
   plain text, or holds a format placeholder, is left out.
+- **API level**: 37, the value `cp2a` gives `RELEASE_PLATFORM_SDK_VERSION`
+  (`flag_values/cp2a/`), kept in the table as `apiLevel`. A name an app
+  declares only up to a lower level (`maxSdkVersion`) is shown apart.
 - **At this tag**: 1,160 declarations, 1,104 permissions, 147 with a label;
   56 declarations left out by a flag; 38 declarations depend on a flag
   `cp2a` does not set.

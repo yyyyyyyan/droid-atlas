@@ -289,11 +289,14 @@ UI helpers worth knowing before changing a screen:
    tried in the pipeline's order (F-Droid, then IzzyOnDroid) and the second
    shard is requested only when the first has no description for that app.
    An app no repository indexes fetches none. The permission names behind a
-   count are in the same shards, each index's in its own. The closed
-   permission row uses only the names in the shards the description lookup
-   read (`OnDemand.detailsRead`), so it adds no request; the other index's
-   shard is fetched when "Show names" is chosen, and not before
-   (`ui/Permissions.tsx`).
+   count are in the same shards, each index's in its own. The sheet reads
+   them once with the description (`OnDemand.detailsRead`, in
+   `SheetContent`), and the closed permission row uses that read: it adds
+   no request, and a failed read has one "Try again", under the
+   description, for both. The other index's shard is fetched when "Show
+   names" is chosen, and not before (`ui/Permissions.tsx`). Two failed
+   files at once make one update check (`leftBehind` shares a check in
+   flight).
 
 Failures are one of four `CatalogError` kinds (`offline`, `missing`,
 `newer-schema`, `damaged`), each with its own screen in `main.tsx`.

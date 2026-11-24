@@ -364,41 +364,60 @@ data/licenses/<SPDX-id>.txt                     text of every license the manife
 An index's permission names for an app sit in that index's details shard,
 not in `sources/<index>.json`: together they come to about 500 kB of JSON,
 which the start of every visit would otherwise download. They are the
-distinct names of the latest version, sorted alphabetically. The indexes
-list them in an order of their own; sorted, a name can be found by eye and
-two indexes' lists compared line by line. An index entry keeps at most 500
-names, and only names of printable characters without spaces; the count
-stays the index's, and the sheet says under a list how many names it does
-not show. Each index's reason for an anti-feature is short and stays in its
+distinct names the latest version declares in `uses-permission` and in
+`uses-permission-sdk-23`, both of which are the app's declarations, sorted
+alphabetically; the count and the internet and Shizuku facts take both too.
+The indexes list them in an order of their own; sorted, a name can be found
+by eye and two indexes' lists compared line by line. A name every
+declaration of which carries `maxSdkVersion` keeps the highest such API
+level beside it (`permissionCaps`); one declaration without it leaves the
+name uncapped, and a cap that is not a whole number from 1 to 1000 is not
+read. An index entry keeps at most 500 names, and only names of printable
+characters without spaces; the count stays the index's, and the sheet says
+under a list how many names it does not show. Each index's reason for an anti-feature is short and stays in its
 index facts.
 
 What Android states about each permission it defines, its protection level
 and its label, comes from `platform/frameworks/base` at a platform release
 tag, read by hand into the committed table `pipeline/android/permissions.json`
 (`pipeline/NOTES.md` § Android's permission statements). Each build keeps the
-rows for the names some app declares, about 280 rows and 6 kB compressed, in
-`sources/android-permissions.json`, which the app loads at start with the
-other parts. It is loaded at start because the closed permission row uses it:
-under the count, the row names what each index lists that Android asks for
-while the app runs, from the details shards the sheet reads for the
-description and no other. Opened, the names are grouped by the stated level,
-and each heading is true of every level under it:
+rows for the names some app declares, about 280 rows and 6 kB compressed,
+with the release's API level, in `sources/android-permissions.json`, which
+the app loads at start with the other parts. It is loaded at start because
+the closed permission row uses it: under the count, the row says how many
+runtime and how many special permissions each index lists, the two kinds a
+person grants themselves, and names up to six of each, those Android labels
+first, counting the rest. It reads only the details shards the sheet reads
+for the description: the description and the row share one
+read, one "Try again" and one update check. It says "no" of a kind only
+for a list that is complete and whose every name, but the app's own, has a
+level Android states; otherwise it gives only the kinds it found, and when
+it found neither it says nothing of kinds. It always names the index it
+describes. "Show names" is offered when the read shard holds names for the
+app. Opened, the
+names are grouped by the stated level. The groups and their headings are
+Droid Atlas's; each heading is true of every level under it, and is
+Android's own name for the type where its permissions overview gives one:
 
 | Group | Levels | What Android states |
 |---|---|---|
-| Asked for while it runs | base `dangerous` | Runtime permissions: the system prompts while the app runs |
-| Special access | the `appop` flag | Special permissions, tied to an app operation |
-| Granted at install | base `normal` | Granted automatically when the app is installed |
+| Runtime permissions | base `dangerous` | Runtime permissions: the system prompts while the app runs |
+| Special permissions | the `appop` flag | Special permissions, tied to an app operation, which a person allows in Settings |
+| Normal permissions | base `normal` without `appop` | Granted automatically when the app is installed |
 | Granted with developer tools | base `signature` or `internal` with `development` | Can also be granted to development applications |
 | Granted with a role | the same bases with `role` | Managed by role |
 | Granted by signing key | the same bases with `knownSigner` | Granted to apps signed with a key Android lists |
 | Granted to built-in apps | the same bases with no flag but those for the device's own apps (`privileged`, `preinstalled`, `installer`, `module`…) | Granted to platform-signed or system apps |
+| For earlier Android versions | any, for a name the app declares only up to an API level below the statements' | The level stated is for a version the declaration does not reach; each name shows the version, as the Requires row writes one |
 | Other names | no statement, or a level no heading above is true of | Another app's or a vendor's permission, one a module defines, one the release does not define |
 
-A name under one of the app's package ids is folded into one line of its
-own. Labels are quoted, and the groups and labels are credited to the
-Android version. A declared permission is not a used one, and a level can
-differ between versions; the Sources page says so once.
+A cap at or above the statements' API level changes nothing. A name under
+one of the app's package ids is folded into one line of its own. Labels are
+quoted, and what Android states, levels and labels, is credited to the
+Android version, with one line where the groups are read: a declared
+permission is not always used, and other versions can differ. The Sources
+page says the same once, and that the statements are the release's default
+configuration.
 
 `<hash>` in a directory name is a digest of the bytes of every file in that
 build, so nothing under `data/c/` is ever rewritten in place. It is not the
