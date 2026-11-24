@@ -15,6 +15,7 @@
  * `catalog/statements.ts`, which keeps it true of the entry it is shown on.
  */
 
+import type { ComponentChildren } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { iconOwner, iconSourceWords } from "../catalog/credits.ts";
 import { detailsSource, factLinkName, factsFor, hasStatistics, licenseLinks, ownerOthers, pricingLabel, privilegeWarning, statisticsFor, termChips, valueLink, type Fact, type FactLink, type Statistics } from "../catalog/facts.ts";
@@ -25,7 +26,7 @@ import { descriptionBlocks, descriptionSize, type DescriptionBlock } from "../ca
 import { framedNote } from "../catalog/statements.ts";
 import { formatDate, licenseName, parseTime, timeAgo } from "../lib/format.ts";
 import { actionsFor, hostOf, platformOf, readableUrl, safeWebUrl, shareUrl, type Action, type ActionKind } from "../links.ts";
-import { leftBehind, reloadForNewShell } from "../offline/client.ts";
+import { reloadForNewShell } from "../offline/client.ts";
 import { PRODUCT_NAME } from "../product.ts";
 import { categoryRoute, filterRoute, HOW_COUNTED, regionRoute } from "../router/route.ts";
 import { announce, useServices } from "../services.ts";
@@ -34,8 +35,10 @@ import { CopyButton, copyText } from "./Copy.tsx";
 import { Icon, type IconName } from "./Icon.tsx";
 import { AppLink, RouteLink } from "./Link.tsx";
 import { NoteEditor } from "./NoteEditor.tsx";
+import { PermissionDetails } from "./Permissions.tsx";
+import { useOnDemand } from "./on-demand.ts";
 import { qrDrawing } from "./qr.ts";
-import { Names } from "./Whole.tsx";
+import { Breakable, Names } from "./Whole.tsx";
 
 const GROUPS: { id: string; kinds: readonly ActionKind[]; title: string }[] = [
   { id: "get", kinds: ["store", "import"], title: "Get it" },
@@ -91,12 +94,6 @@ export function ActionLink({ action, class: className, children }: { action: Act
       {children}
     </a>
   );
-}
-
-/** An id or an address with a place to break after each dot, slash, dash and underscore, so a long one wraps between its parts and never strands a letter. */
-function Breakable({ text }: { text: string }) {
-  const parts = text.split(/(?<=[./_-])/);
-  return <>{parts.map((part, index) => (index === 0 ? part : <><wbr />{part}</>))}</>;
 }
 
 function ActionRow({ action }: { action: Action }) {
@@ -215,7 +212,7 @@ function OwnerOthers({ entry }: { entry: Entry }) {
 /**
  * @param shared the source the block's heading names; a line names its own only when it differs
  */
-function FactRow({ fact, shared, entry }: { fact: Fact; shared: string | null; entry: Entry }) {
+function FactRow({ fact, shared, entry, children }: { fact: Fact; shared: string | null; entry: Entry; children?: ComponentChildren }) {
   return (
     <div class="fact">
       <dt>{fact.label}</dt>
@@ -237,6 +234,7 @@ function FactRow({ fact, shared, entry }: { fact: Fact; shared: string | null; e
             </div>
           );
         })}
+        {children}
       </dd>
     </div>
   );
@@ -329,35 +327,6 @@ function ListingBlock({ listing, entry }: { listing: Listing; entry: Entry }) {
       </dl>
     </article>
   );
-}
-
-/** `behind` on a failure: the device holds a newer catalog than the one on screen, so trying again will not help and loading the page again will. */
-type Loadable<T> = { state: "loading" } | { state: "ready"; value: T } | { state: "failed"; behind: boolean; retry(): void };
-
-function useOnDemand<T>(key: string, load: () => Promise<T>): Loadable<T> {
-  const { build } = useServices();
-  const [result, setResult] = useState<Loadable<T>>({ state: "loading" });
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    let current = true;
-    setResult({ state: "loading" });
-    load().then(
-      (value) => {
-        if (current) setResult({ state: "ready", value });
-      },
-      async () => {
-        /* The failure shows at once; finding out whether a newer catalog is the reason can take a check of the site. */
-        const retry = (): void => setAttempt((count) => count + 1);
-        if (current) setResult({ state: "failed", behind: false, retry });
-        const behind = await leftBehind(build.dataRoot, build.version.hash);
-        if (current && behind) setResult({ state: "failed", behind, retry });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [key, attempt]);
-  return result;
 }
 
 /**
@@ -609,7 +578,13 @@ export function SheetContent({ entry }: { entry: Entry }) {
 
       <section class="sheet-section" aria-labelledby="sheet-facts">
         <h3 class="overline" id="sheet-facts">Details{shared && <span> · {shared}</span>}</h3>
-        <dl class="facts">{facts.map((fact) => <FactRow key={fact.key} fact={fact} shared={shared} entry={entry} />)}</dl>
+        <dl class="facts">
+          {facts.map((fact) => (
+            <FactRow key={fact.key} fact={fact} shared={shared} entry={entry}>
+              {fact.key === "permissions" && <PermissionDetails key={entry.app.id} entry={entry} shared={shared} />}
+            </FactRow>
+          ))}
+        </dl>
       </section>
 
       <details class="sheet-more">

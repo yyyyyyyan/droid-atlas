@@ -72,8 +72,11 @@ function published(overrides: Overrides = {}): Site {
     path === "atlas.json" ? "atlas" : path.endsWith("github.json") ? "github" : /(fdroid|izzy)\.json$/.test(path) ? "index" : "source"
   );
   const shard = detailsShard("example", 4);
-  const fdroid = JSON.stringify({ example: { description: "From F-Droid…" } });
-  const izzy = JSON.stringify({ example: { description: "From IzzyOnDroid" }, other: { description: "  " } });
+  const fdroid = JSON.stringify({ example: { description: "From F-Droid…", permissions: ["android.permission.CAMERA", "android.permission.INTERNET"] } });
+  const izzy = JSON.stringify({
+    example: { description: "From IzzyOnDroid", permissions: ["android.permission.INTERNET"] },
+    other: { description: "  ", permissions: ["ok.name", 7, null, { name: "x" }, ""] },
+  });
   const icons = JSON.stringify({ header: {}, icons: [ICON_RECORD, { file: "icons/b.webp", package: "org.b", repo: "fdroid", app: "B", author: "Bea", license: "MIT" }, { ...ICON_RECORD, file: "icons/c.webp", original: "https://example.org/c.png" }, "icons/d.webp", null] });
   const manifest = {
     schema: CATALOG_SCHEMA_VERSION,
@@ -293,6 +296,60 @@ describe("files loaded on demand", () => {
     await expect(retried.description("example", BOTH)).rejects.toMatchObject({ kind: "missing" });
     flaky.files.set(url, body);
     expect((await retried.description("example", BOTH))?.origin).toBe("fdroid");
+  });
+
+  test("what the description lookup reads gives the names of exactly the shards it fetched, and no more requests", async () => {
+    const source = published();
+    const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
+    expect(await onDemand.detailsRead("example", BOTH)).toEqual({
+      description: { origin: "fdroid", text: "From F-Droid…" },
+      permissions: [{ origin: "fdroid", names: ["android.permission.CAMERA", "android.permission.INTERNET"] }],
+    });
+    expect(shardRequests(source)).toEqual(["fdroid"]);
+    await onDemand.description("example", BOTH);
+    expect(shardRequests(source)).toEqual(["fdroid"]);
+
+    const absentFromFirst = ["izzy-only", "y1", "y2", "y3", "y4", "y5", "y6", "y7"].find((id) => detailsShard(id, 4) === detailsShard("example", 4)) ?? "";
+    expect(await onDemand.detailsRead(absentFromFirst, BOTH)).toEqual({
+      description: null,
+      permissions: [{ origin: "fdroid", names: [] }, { origin: "izzy", names: [] }],
+    });
+    expect(await onDemand.detailsRead("example", ["android-foss"])).toEqual({ description: null, permissions: [] });
+  });
+
+  test("permission names come from the shard of the index asked for, and only that one is fetched", async () => {
+    const source = published();
+    const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
+    expect(await onDemand.permissionNames("example", "izzy")).toEqual(["android.permission.INTERNET"]);
+    expect(shardRequests(source)).toEqual(["izzy"]);
+    expect(await onDemand.permissionNames("example", "fdroid")).toEqual(["android.permission.CAMERA", "android.permission.INTERNET"]);
+    expect(shardRequests(source)).toEqual(["izzy", "fdroid"]);
+  });
+
+  test("the names share the description's fetch of a shard", async () => {
+    const source = published();
+    const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
+    await onDemand.description("example", BOTH);
+    await onDemand.permissionNames("example", "fdroid");
+    expect(shardRequests(source)).toEqual(["fdroid"]);
+  });
+
+  test("anything in a names list that is not a non-empty string is dropped, and an app with no list has no names", async () => {
+    const source = published();
+    const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
+    expect(await onDemand.permissionNames("other", "izzy")).toEqual(["ok.name"]);
+    const sameShard = ["x1", "x2", "x3", "x4", "x5", "x6", "x7"].filter((id) => detailsShard(id, 4) === detailsShard("example", 4));
+    for (const id of sameShard) expect(await onDemand.permissionNames(id, "izzy")).toEqual([]);
+    expect(await onDemand.permissionNames("__proto__", "izzy")).toEqual([]);
+    expect(await onDemand.permissionNames("constructor", "izzy")).toEqual([]);
+  });
+
+  test("a shard that cannot be loaded rejects the names", async () => {
+    const flaky = published();
+    const prepared = await build(flaky);
+    const url = [...flaky.files.keys()].find((key) => key.includes("/details/izzy/")) ?? "";
+    flaky.files.delete(url);
+    await expect(createOnDemand(prepared, flaky.fetcher, sha256).permissionNames("example", "izzy")).rejects.toMatchObject({ kind: "missing" });
   });
 
   test("an icon's attribution is found by the path the app carries", async () => {

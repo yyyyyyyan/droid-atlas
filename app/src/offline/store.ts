@@ -35,7 +35,7 @@ import {
 } from "./decide.ts";
 
 /** The roles of the files a launch needs before it can render. Details shards, icon credits and upstream snapshots are fetched when viewed. */
-const START_ROLES = new Set(["atlas", "source", "index", "github"]);
+const START_ROLES = new Set(["atlas", "source", "index", "github", "android"]);
 
 export interface CacheLike {
   match(url: string): Promise<Response | undefined>;

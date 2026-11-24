@@ -9,8 +9,9 @@
  * turns a manifest into a `Catalog`.
  */
 
-import { CATALOG_SCHEMA_VERSION, detailsShard, type Catalog, type CatalogVersion, type DetailsShard, type Origin } from "./schema.ts";
+import { CATALOG_SCHEMA_VERSION, detailsShard, type Catalog, type CatalogVersion, type DetailsEntry, type DetailsShard, type Origin } from "./schema.ts";
 import type { IconRecord, Manifest, ManifestFile, PartHeader } from "../../../schema/parts.ts";
+import type { AndroidStatements } from "./permissions.ts";
 
 export type { IconRecord, Manifest, ManifestFile, PartHeader };
 
@@ -52,6 +53,8 @@ export interface LoadedCatalog extends LoadedBuild {
   catalog: Catalog;
   /** The parts the catalog was joined from, in the order the manifest lists them. */
   parts: LoadedPart[];
+  /** Android's statements about the permissions apps declare; null when the build has none, or they are not in the expected form. */
+  android: AndroidStatements | null;
 }
 
 /**
@@ -194,6 +197,12 @@ export interface Description {
   text: string;
 }
 
+/** What the description lookup reads for an app: the description, and the permission names in each shard it read, in the order it read them. */
+export interface DetailsRead {
+  description: Description | null;
+  permissions: { origin: "fdroid" | "izzy"; names: string[] }[];
+}
+
 export interface OnDemand {
   /**
    * The long description of an app. The build holds at most one per app, in
@@ -204,6 +213,18 @@ export interface OnDemand {
    * that does not index the app. Rejects when a shard cannot be loaded.
    */
   description(appId: string, indexedBy: readonly Origin[]): Promise<Description | null>;
+  /**
+   * The description, as `description` finds it, with the permission names of
+   * every shard that lookup reads. It reads exactly the shards `description`
+   * reads, so it adds no request to an open sheet.
+   */
+  detailsRead(appId: string, indexedBy: readonly Origin[]): Promise<DetailsRead>;
+  /**
+   * The permission names one index states for the app, in the order the
+   * build stores them, from that index's details shard alone. Empty when the
+   * shard has none for the app. Rejects when the shard cannot be loaded.
+   */
+  permissionNames(appId: string, origin: "fdroid" | "izzy"): Promise<string[]>;
   /** The attribution record of a self-hosted icon, by the path `App.icon` holds. Null when there is none. */
   iconRecord(iconPath: string): Promise<IconRecord | null>;
   /** Every icon attribution record of the build, with the header of the file that holds them. Rejects when the file cannot be loaded. */
@@ -211,7 +232,7 @@ export interface OnDemand {
 }
 
 /** The order in which the pipeline looks for an app's long description. */
-const DESCRIPTION_ORIGINS: readonly Origin[] = ["fdroid", "izzy"];
+const DESCRIPTION_ORIGINS: readonly ("fdroid" | "izzy")[] = ["fdroid", "izzy"];
 
 const ICON_TEXT_FIELDS = ["file", "fileLarge", "app", "name", "rule", "retrieved", "author", "license", "changes"] as const;
 
@@ -239,18 +260,38 @@ export function createOnDemand(build: LoadedBuild, fetcher: Fetch = fetch, diges
   const iconsFile = build.manifest.files.find((file) => file.role === "icons") ?? null;
   let icons: Promise<Map<string, IconRecord>> | null = null;
 
+  const detailsEntry = async (appId: string, origin: Origin): Promise<DetailsEntry | null> => {
+    const path = `details/${origin}/${detailsShard(appId, build.manifest.detailsShards)}.json`;
+    const file = detailFiles.find((candidate) => candidate.path === path);
+    if (!file) return null;
+    const content = await listed(file);
+    const entry = isRecord(content) && Object.hasOwn(content, appId) ? (content as DetailsShard)[appId] : undefined;
+    return isRecord(entry) ? entry : null;
+  };
+
+  const namesOf = (entry: DetailsEntry | null): string[] => {
+    const names: unknown = entry?.permissions;
+    return Array.isArray(names) ? names.filter((name): name is string => typeof name === "string" && name.trim() !== "") : [];
+  };
+
+  const detailsRead = async (appId: string, indexedBy: readonly Origin[]): Promise<DetailsRead> => {
+    const permissions: DetailsRead["permissions"] = [];
+    for (const origin of DESCRIPTION_ORIGINS) {
+      if (!indexedBy.includes(origin)) continue;
+      const entry = await detailsEntry(appId, origin);
+      permissions.push({ origin, names: namesOf(entry) });
+      if (entry && typeof entry.description === "string" && entry.description.trim()) return { description: { origin, text: entry.description }, permissions };
+    }
+    return { description: null, permissions };
+  };
+
   return {
     async description(appId, indexedBy) {
-      const shard = detailsShard(appId, build.manifest.detailsShards);
-      for (const origin of DESCRIPTION_ORIGINS) {
-        if (!indexedBy.includes(origin)) continue;
-        const file = detailFiles.find((candidate) => candidate.path === `details/${origin}/${shard}.json`);
-        if (!file) continue;
-        const content = await listed(file);
-        const entry = isRecord(content) && Object.hasOwn(content, appId) ? (content as DetailsShard)[appId] : undefined;
-        if (entry && typeof entry.description === "string" && entry.description.trim()) return { origin, text: entry.description };
-      }
-      return null;
+      return (await detailsRead(appId, indexedBy)).description;
+    },
+    detailsRead,
+    async permissionNames(appId, origin) {
+      return namesOf(await detailsEntry(appId, origin));
     },
     async iconRecord(iconPath) {
       if (!iconsFile) return null;

@@ -15,6 +15,7 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { DOWNLOAD_MEANING } from "../catalog/schema.ts";
 import { licenseIds, licensesMentioned, licenseTextPath, projectUrl, sourceCredits, type SourceCredit } from "../catalog/credits.ts";
+import { levelsNote } from "../catalog/permissions.ts";
 import { byteSize, formatDateTime, formatDay, licenseName, parseTime } from "../lib/format.ts";
 import { FDROID_MARK, PRODUCT_CONTACT, PRODUCT_FONTS, PRODUCT_ISSUES, PRODUCT_NAME, PRODUCT_REPOSITORY } from "../product.ts";
 import { aboutRoute, licenseRoute } from "../router/route.ts";
@@ -53,7 +54,7 @@ function FileLink({ file }: { file: { url: string; name: string; bytes: number }
 /**
  * @param counts what this source's download figures count, for a source that publishes any
  */
-function CreditBlock({ credit, texts, dataRoot, counts = null }: { credit: SourceCredit; texts: ReadonlySet<string>; dataRoot: string; counts?: string | null }) {
+function CreditBlock({ credit, texts, dataRoot, counts = null, levels = null }: { credit: SourceCredit; texts: ReadonlySet<string>; dataRoot: string; counts?: string | null; levels?: string | null }) {
   const ids = licenseIds(credit.license);
   const mentioned = ids.length ? [] : licensesMentioned(credit.attribution);
   const asOf = parseTime(credit.asOf);
@@ -92,6 +93,7 @@ function CreditBlock({ credit, texts, dataRoot, counts = null }: { credit: Sourc
         {credit.entries !== null && <div><dt>Entries</dt><dd>{credit.entries.toLocaleString("en")}</dd></div>}
         {credit.changes && <div><dt>Changes</dt><dd dir="auto">{credit.changes}</dd></div>}
         {counts && <div><dt>Downloads</dt><dd>{counts}</dd></div>}
+        {levels && <div><dt>Levels</dt><dd>{levels}</dd></div>}
         {data.length > 0 && (
           <div>
             <dt>Data file</dt>
@@ -166,7 +168,9 @@ export function AboutSources() {
 
         <section aria-labelledby="about-facts">
           <h2 class="overline" id="about-facts" ref={factsHeading}>Facts and descriptions</h2>
-          {facts.map((credit) => <CreditBlock key={credit.origin} credit={credit} counts={countsOf(credit.origin)} {...shared} />)}
+          {facts.map((credit) => (
+            <CreditBlock key={credit.origin} credit={credit} counts={countsOf(credit.origin)} levels={credit.origin === "android" && build.android ? levelsNote(build.android) : null} {...shared} />
+          ))}
           {facts.some((credit) => countsOf(credit.origin) !== null) && <p class="page-text">Each source counts in its own way over its own period.</p>}
         </section>
 

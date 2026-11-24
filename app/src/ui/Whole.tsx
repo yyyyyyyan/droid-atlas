@@ -1,7 +1,8 @@
 /**
- * Text that is never broken inside itself: a product or source name
- * ("F-Droid" breaks at its hyphen otherwise), a figure with its unit. A
- * line may still break between two of them.
+ * Where text may break across lines. A product or source name ("F-Droid"
+ * breaks at its hyphen otherwise) and a figure with its unit are never
+ * broken inside themselves, though a line may still break between two of
+ * them; an id or an address breaks only between its parts.
  */
 
 import { Fragment } from "preact";
@@ -32,4 +33,10 @@ export function Names({ names }: { names: readonly string[] }) {
       ))}
     </>
   );
+}
+
+/** An id or an address with a place to break after each dot, slash, dash and underscore, so a long one wraps between its parts and never strands a letter. */
+export function Breakable({ text }: { text: string }) {
+  const parts = text.split(/(?<=[./_-])/);
+  return <>{parts.map((part, index) => (index === 0 ? part : <><wbr />{part}</>))}</>;
 }

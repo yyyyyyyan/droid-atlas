@@ -24,7 +24,7 @@ export interface CreditFile {
 }
 
 export interface SourceCredit {
-  origin: Origin | "droid-atlas";
+  origin: Origin | "android" | "droid-atlas";
   /** What kind of origin this is, which decides the section it is listed in. */
   group: "catalog" | "facts" | "own";
   title: string;
@@ -36,7 +36,7 @@ export interface SourceCredit {
   licenseUrl: string | null;
   /** Upstream commit the part was made from, when the upstream has commits. */
   commit: string | null;
-  /** A link to that commit, when the upstream is a GitHub repository. */
+  /** A link to that commit, when the upstream is a GitHub repository or one of Android's. */
   commitUrl: string | null;
   /** ISO time of the commit, the index or the fetch the part reflects. */
   asOf: string | null;
@@ -47,7 +47,7 @@ export interface SourceCredit {
   files: CreditFile[];
 }
 
-const ORDER: (Origin | "droid-atlas")[] = ["android-foss", "awesome-shizuku", "fdroid", "izzy", "github", "droid-atlas"];
+const ORDER: SourceCredit["origin"][] = ["android-foss", "awesome-shizuku", "fdroid", "izzy", "github", "android", "droid-atlas"];
 const COMMIT = /^[0-9a-f]{7,40}$/;
 
 /** A plain SPDX identifier: one license, whose text the build ships under `licenses/`. */
@@ -92,6 +92,9 @@ function commitLink(url: string | null, commit: string | null): string | null {
     parsed = new URL(url);
   } catch {
     return null;
+  }
+  if (parsed.hostname === "android.googlesource.com" && /^\/platform(?:\/[A-Za-z0-9._-]+)+\/?$/.test(parsed.pathname)) {
+    return `https://android.googlesource.com${parsed.pathname.replace(/\/$/, "")}/+/${commit}`;
   }
   if (parsed.hostname !== "github.com" || !/^\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\/?$/.test(parsed.pathname)) return null;
   return `https://github.com${parsed.pathname.replace(/\/$/, "")}/commit/${commit}`;

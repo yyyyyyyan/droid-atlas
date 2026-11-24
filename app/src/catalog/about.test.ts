@@ -31,6 +31,7 @@ function built(subject: Catalog, parts: LoadedPart[], extra: ManifestFile[] = []
     base: BASE,
     dataRoot: DATA,
     verified: true,
+    android: null,
   };
 }
 
@@ -134,6 +135,24 @@ describe("source credits", () => {
     const credits = sourceCredits(realistic());
     expect(credits.map((credit) => credit.origin)).toEqual(["android-foss", "awesome-shizuku", "fdroid", "izzy", "github", "droid-atlas"]);
     expect(credits.map((credit) => credit.group)).toEqual(["catalog", "catalog", "facts", "facts", "facts", "own"]);
+  });
+
+  test("Android's statements are credited among the facts, before our own data, with a link to the commit they were read at", () => {
+    const base = realistic();
+    const commit = "94b4c163b7dfe5ce3607f7bb8456f9573f7de57d";
+    const android = {
+      file: file("sources/android-permissions.json", "android", "android", "Apache-2.0"),
+      header: header({ source: { name: "Android 17 (Android Open Source Project)", url: "https://android.googlesource.com/platform/frameworks/base", commit }, license: "Apache-2.0" }),
+    };
+    const credits = sourceCredits({ ...base, parts: [...base.parts, android], manifest: { ...base.manifest, files: [...base.manifest.files, android.file] } });
+    expect(credits.map((credit) => credit.origin)).toEqual(["android-foss", "awesome-shizuku", "fdroid", "izzy", "github", "android", "droid-atlas"]);
+    expect(credits.find((credit) => credit.origin === "android")).toMatchObject({
+      group: "facts",
+      title: "Android 17 (Android Open Source Project)",
+      license: "Apache-2.0",
+      commit,
+      commitUrl: `https://android.googlesource.com/platform/frameworks/base/+/${commit}`,
+    });
   });
 
   test("a catalog's credit carries what its license asks to be shown", () => {
