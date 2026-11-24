@@ -320,6 +320,7 @@ html.has-keyboard .sheet-meta { display: none; }
 .perm-summary { margin-top: 6px; }
 .perm-summary .fact-value { font-size: 13.5px; }
 .perm-summary .fact-detail { overflow-wrap: anywhere; }
+.perm-summary .fact-detail + .fact-detail { margin-top: 4px; }
 .perm-lists > .credit { margin: 0 0 6px; }
 .perm-list + .perm-list { margin-top: 14px; }
 .perm-list > .credit { margin: 0 0 4px; }
@@ -329,6 +330,8 @@ html.has-keyboard .sheet-meta { display: none; }
 .perm-item { display: grid; font-size: 12.5px; line-height: 1.4; }
 .perm-label { font-size: 13px; color: var(--text); }
 .perm-name { color: var(--text-2); overflow-wrap: anywhere; }
+.perm-cap { color: var(--text-3); }
+.perm-lists > .perm-caveat { margin: -4px 0 6px; }
 .perm-own-toggle { display: block; text-align: left; }
 .perm-own .perm-items { margin-bottom: 4px; }
 .perm-list > .credit-note { margin-top: 6px; }

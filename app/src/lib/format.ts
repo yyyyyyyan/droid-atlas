@@ -60,9 +60,14 @@ export function fileSize(bytes: number): string {
   return `${megabytes.toFixed(megabytes < 10 ? 1 : 0)}\u00a0MB`;
 }
 
-export function androidVersion(sdk: number): string {
+/** The Android version an API level is, "Android 4.3", or "API level 18" when it is not known. */
+export function androidName(sdk: number): string {
   const version = SDK_TO_ANDROID[sdk];
-  return version ? `Android ${version}+` : `API level ${sdk}+`;
+  return version ? `Android ${version}` : `API level ${sdk}`;
+}
+
+export function androidVersion(sdk: number): string {
+  return `${androidName(sdk)}+`;
 }
 
 /** The locale dates and numbers are written in: the interface is in American English. */

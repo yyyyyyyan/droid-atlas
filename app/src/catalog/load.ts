@@ -197,34 +197,37 @@ export interface Description {
   text: string;
 }
 
+/** One index's permission names for an app, and the API level each name it declares only up to is capped at. */
+export interface DeclaredNames {
+  names: string[];
+  caps: Record<string, number>;
+}
+
 /** What the description lookup reads for an app: the description, and the permission names in each shard it read, in the order it read them. */
 export interface DetailsRead {
   description: Description | null;
-  permissions: { origin: "fdroid" | "izzy"; names: string[] }[];
+  permissions: ({ origin: "fdroid" | "izzy" } & DeclaredNames)[];
 }
 
 export interface OnDemand {
   /**
-   * The long description of an app. The build holds at most one per app, in
-   * the shard of the first repository index that has one, so the origins that
+   * The long description of an app, with the permission names of every shard
+   * read to find it. The build holds at most one description per app, in the
+   * shard of the first repository index that has one, so the origins that
    * index the app (`App.index`) are tried in the pipeline's order, F-Droid then
    * IzzyOnDroid, one shard at a time, and the second is fetched only when the
    * first has no description for this app. No shard is fetched for an origin
-   * that does not index the app. Rejects when a shard cannot be loaded.
-   */
-  description(appId: string, indexedBy: readonly Origin[]): Promise<Description | null>;
-  /**
-   * The description, as `description` finds it, with the permission names of
-   * every shard that lookup reads. It reads exactly the shards `description`
-   * reads, so it adds no request to an open sheet.
+   * that does not index the app, so the names add no request to an open
+   * sheet. Rejects when a shard cannot be loaded.
    */
   detailsRead(appId: string, indexedBy: readonly Origin[]): Promise<DetailsRead>;
   /**
    * The permission names one index states for the app, in the order the
-   * build stores them, from that index's details shard alone. Empty when the
-   * shard has none for the app. Rejects when the shard cannot be loaded.
+   * build stores them, with their caps, from that index's details shard
+   * alone. Empty when the shard has none for the app. Rejects when the shard
+   * cannot be loaded.
    */
-  permissionNames(appId: string, origin: "fdroid" | "izzy"): Promise<string[]>;
+  permissionNames(appId: string, origin: "fdroid" | "izzy"): Promise<DeclaredNames>;
   /** The attribution record of a self-hosted icon, by the path `App.icon` holds. Null when there is none. */
   iconRecord(iconPath: string): Promise<IconRecord | null>;
   /** Every icon attribution record of the build, with the header of the file that holds them. Rejects when the file cannot be loaded. */
@@ -269,9 +272,19 @@ export function createOnDemand(build: LoadedBuild, fetcher: Fetch = fetch, diges
     return isRecord(entry) ? entry : null;
   };
 
-  const namesOf = (entry: DetailsEntry | null): string[] => {
-    const names: unknown = entry?.permissions;
-    return Array.isArray(names) ? names.filter((name): name is string => typeof name === "string" && name.trim() !== "") : [];
+  /** A cap is kept only for a listed name, as a whole number from 1 to 1000. */
+  const namesOf = (entry: DetailsEntry | null): DeclaredNames => {
+    const listed: unknown = entry?.permissions;
+    const names = Array.isArray(listed) ? listed.filter((name): name is string => typeof name === "string" && name.trim() !== "") : [];
+    const given: unknown = entry?.permissionCaps;
+    const caps: Record<string, number> = {};
+    if (isRecord(given)) {
+      for (const name of names) {
+        const cap = Object.hasOwn(given, name) ? given[name] : undefined;
+        if (typeof cap === "number" && Number.isInteger(cap) && cap >= 1 && cap <= 1000) caps[name] = cap;
+      }
+    }
+    return { names, caps };
   };
 
   const detailsRead = async (appId: string, indexedBy: readonly Origin[]): Promise<DetailsRead> => {
@@ -279,16 +292,13 @@ export function createOnDemand(build: LoadedBuild, fetcher: Fetch = fetch, diges
     for (const origin of DESCRIPTION_ORIGINS) {
       if (!indexedBy.includes(origin)) continue;
       const entry = await detailsEntry(appId, origin);
-      permissions.push({ origin, names: namesOf(entry) });
+      permissions.push({ origin, ...namesOf(entry) });
       if (entry && typeof entry.description === "string" && entry.description.trim()) return { description: { origin, text: entry.description }, permissions };
     }
     return { description: null, permissions };
   };
 
   return {
-    async description(appId, indexedBy) {
-      return (await detailsRead(appId, indexedBy)).description;
-    },
     detailsRead,
     async permissionNames(appId, origin) {
       return namesOf(await detailsEntry(appId, origin));

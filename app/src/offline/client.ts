@@ -236,6 +236,8 @@ async function runCheck(env: OfflineEnv): Promise<void> {
   };
 }
 
+let leftBehindCheck: { shown: string; result: Promise<boolean> } | null = null;
+
 /**
  * Called when a file of the build on screen could not be loaded. A window
  * that stays open is not told about newer builds, and the site keeps the
@@ -243,9 +245,19 @@ async function runCheck(env: OfflineEnv): Promise<void> {
  * window has been left behind. This looks for a newer build if none is known
  * yet, and answers whether the device now holds a build other than `shown`,
  * the hash of the one on screen: if so, loading the page again is what
- * helps, and every view says so from then on.
+ * helps, and every view says so from then on. Callers that ask while a
+ * check runs share its answer, so two failed files make one check.
  */
-export async function leftBehind(dataRoot: string, shown: string): Promise<boolean> {
+export function leftBehind(dataRoot: string, shown: string): Promise<boolean> {
+  if (leftBehindCheck?.shown === shown) return leftBehindCheck.result;
+  const result = findLeftBehind(dataRoot, shown).finally(() => {
+    if (leftBehindCheck?.result === result) leftBehindCheck = null;
+  });
+  leftBehindCheck = { shown, result };
+  return result;
+}
+
+async function findLeftBehind(dataRoot: string, shown: string): Promise<boolean> {
   const env = offlineEnv(dataRoot);
   if (!env) return false;
   try {

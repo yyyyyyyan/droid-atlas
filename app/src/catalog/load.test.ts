@@ -75,7 +75,11 @@ function published(overrides: Overrides = {}): Site {
   const fdroid = JSON.stringify({ example: { description: "From F-Droid…", permissions: ["android.permission.CAMERA", "android.permission.INTERNET"] } });
   const izzy = JSON.stringify({
     example: { description: "From IzzyOnDroid", permissions: ["android.permission.INTERNET"] },
-    other: { description: "  ", permissions: ["ok.name", 7, null, { name: "x" }, ""] },
+    other: {
+      description: "  ",
+      permissions: ["ok.name", "capped.name", "odd.cap", 7, null, { name: "x" }, ""],
+      permissionCaps: { "capped.name": 18, "odd.cap": 18.5, "not.listed": 18, "ok.name": "18" },
+    },
   });
   const icons = JSON.stringify({ header: {}, icons: [ICON_RECORD, { file: "icons/b.webp", package: "org.b", repo: "fdroid", app: "B", author: "Bea", license: "MIT" }, { ...ICON_RECORD, file: "icons/c.webp", original: "https://example.org/c.png" }, "icons/d.webp", null] });
   const manifest = {
@@ -242,14 +246,14 @@ describe("files loaded on demand", () => {
   test("the description is the first index's, and the second index's shard is not fetched", async () => {
     const source = published();
     const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
-    expect(await onDemand.description("example", BOTH)).toEqual({ origin: "fdroid", text: "From F-Droid…" });
+    expect((await onDemand.detailsRead("example", BOTH)).description).toEqual({ origin: "fdroid", text: "From F-Droid…" });
     expect(shardRequests(source)).toEqual(["fdroid"]);
   });
 
   test("the order is the pipeline's, whatever order the indexes are given in", async () => {
     const source = published();
     const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
-    expect((await onDemand.description("example", ["izzy", "fdroid"]))?.origin).toBe("fdroid");
+    expect((await onDemand.detailsRead("example", ["izzy", "fdroid"])).description?.origin).toBe("fdroid");
     expect(shardRequests(source)).toEqual(["fdroid"]);
   });
 
@@ -258,17 +262,17 @@ describe("files loaded on demand", () => {
     const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
     const absentFromFirst = ["izzy-only", "y1", "y2", "y3", "y4", "y5", "y6", "y7"].find((id) => detailsShard(id, 4) === detailsShard("example", 4)) ?? "";
     expect(absentFromFirst).not.toBe("");
-    expect(await onDemand.description(absentFromFirst, BOTH)).toBeNull();
+    expect((await onDemand.detailsRead(absentFromFirst, BOTH)).description).toBeNull();
     expect(shardRequests(source)).toEqual(["fdroid", "izzy"]);
   });
 
   test("no shard is fetched for an origin that does not index the app", async () => {
     const source = published();
     const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
-    expect(await onDemand.description("example", ["izzy"])).toEqual({ origin: "izzy", text: "From IzzyOnDroid" });
+    expect((await onDemand.detailsRead("example", ["izzy"])).description).toEqual({ origin: "izzy", text: "From IzzyOnDroid" });
     expect(shardRequests(source)).toEqual(["izzy"]);
-    expect(await onDemand.description("example", [])).toBeNull();
-    expect(await onDemand.description("example", ["android-foss", "github"])).toBeNull();
+    expect((await onDemand.detailsRead("example", [])).description).toBeNull();
+    expect((await onDemand.detailsRead("example", ["android-foss", "github"])).description).toBeNull();
     expect(shardRequests(source)).toEqual(["izzy"]);
   });
 
@@ -276,15 +280,15 @@ describe("files loaded on demand", () => {
     const source = published();
     const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
     const sameShard = ["other", "x1", "x2", "x3", "x4", "x5", "x6", "x7"].filter((id) => detailsShard(id, 4) === detailsShard("example", 4));
-    for (const id of sameShard) expect(await onDemand.description(id, BOTH)).toBeNull();
-    expect(await onDemand.description("__proto__", BOTH)).toBeNull();
+    for (const id of sameShard) expect((await onDemand.detailsRead(id, BOTH)).description).toBeNull();
+    expect((await onDemand.detailsRead("__proto__", BOTH)).description).toBeNull();
   });
 
   test("a shard is fetched once, and a failed fetch is tried again", async () => {
     const source = published();
     const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
-    await onDemand.description("example", BOTH);
-    await onDemand.description("example", BOTH);
+    await onDemand.detailsRead("example", BOTH);
+    await onDemand.detailsRead("example", BOTH);
     expect(shardRequests(source)).toHaveLength(1);
 
     const flaky = published();
@@ -293,9 +297,9 @@ describe("files loaded on demand", () => {
     const body = flaky.files.get(url) ?? "";
     flaky.files.delete(url);
     const retried = createOnDemand(prepared, flaky.fetcher, sha256);
-    await expect(retried.description("example", BOTH)).rejects.toMatchObject({ kind: "missing" });
+    await expect(retried.detailsRead("example", BOTH)).rejects.toMatchObject({ kind: "missing" });
     flaky.files.set(url, body);
-    expect((await retried.description("example", BOTH))?.origin).toBe("fdroid");
+    expect((await retried.detailsRead("example", BOTH)).description?.origin).toBe("fdroid");
   });
 
   test("what the description lookup reads gives the names of exactly the shards it fetched, and no more requests", async () => {
@@ -303,16 +307,16 @@ describe("files loaded on demand", () => {
     const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
     expect(await onDemand.detailsRead("example", BOTH)).toEqual({
       description: { origin: "fdroid", text: "From F-Droid…" },
-      permissions: [{ origin: "fdroid", names: ["android.permission.CAMERA", "android.permission.INTERNET"] }],
+      permissions: [{ origin: "fdroid", names: ["android.permission.CAMERA", "android.permission.INTERNET"], caps: {} }],
     });
     expect(shardRequests(source)).toEqual(["fdroid"]);
-    await onDemand.description("example", BOTH);
+    await onDemand.detailsRead("example", BOTH);
     expect(shardRequests(source)).toEqual(["fdroid"]);
 
     const absentFromFirst = ["izzy-only", "y1", "y2", "y3", "y4", "y5", "y6", "y7"].find((id) => detailsShard(id, 4) === detailsShard("example", 4)) ?? "";
     expect(await onDemand.detailsRead(absentFromFirst, BOTH)).toEqual({
       description: null,
-      permissions: [{ origin: "fdroid", names: [] }, { origin: "izzy", names: [] }],
+      permissions: [{ origin: "fdroid", names: [], caps: {} }, { origin: "izzy", names: [], caps: {} }],
     });
     expect(await onDemand.detailsRead("example", ["android-foss"])).toEqual({ description: null, permissions: [] });
   });
@@ -320,28 +324,29 @@ describe("files loaded on demand", () => {
   test("permission names come from the shard of the index asked for, and only that one is fetched", async () => {
     const source = published();
     const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
-    expect(await onDemand.permissionNames("example", "izzy")).toEqual(["android.permission.INTERNET"]);
+    expect(await onDemand.permissionNames("example", "izzy")).toEqual({ names: ["android.permission.INTERNET"], caps: {} });
     expect(shardRequests(source)).toEqual(["izzy"]);
-    expect(await onDemand.permissionNames("example", "fdroid")).toEqual(["android.permission.CAMERA", "android.permission.INTERNET"]);
+    expect(await onDemand.permissionNames("example", "fdroid")).toEqual({ names: ["android.permission.CAMERA", "android.permission.INTERNET"], caps: {} });
     expect(shardRequests(source)).toEqual(["izzy", "fdroid"]);
   });
 
   test("the names share the description's fetch of a shard", async () => {
     const source = published();
     const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
-    await onDemand.description("example", BOTH);
+    await onDemand.detailsRead("example", BOTH);
     await onDemand.permissionNames("example", "fdroid");
     expect(shardRequests(source)).toEqual(["fdroid"]);
   });
 
-  test("anything in a names list that is not a non-empty string is dropped, and an app with no list has no names", async () => {
+  test("anything in a names list that is not a non-empty string is dropped, a cap is kept only for a listed name as a whole number, and an app with no list has no names", async () => {
     const source = published();
     const onDemand = createOnDemand(await build(source), source.fetcher, sha256);
-    expect(await onDemand.permissionNames("other", "izzy")).toEqual(["ok.name"]);
+    expect(await onDemand.permissionNames("other", "izzy")).toEqual({ names: ["ok.name", "capped.name", "odd.cap"], caps: { "capped.name": 18 } });
     const sameShard = ["x1", "x2", "x3", "x4", "x5", "x6", "x7"].filter((id) => detailsShard(id, 4) === detailsShard("example", 4));
-    for (const id of sameShard) expect(await onDemand.permissionNames(id, "izzy")).toEqual([]);
-    expect(await onDemand.permissionNames("__proto__", "izzy")).toEqual([]);
-    expect(await onDemand.permissionNames("constructor", "izzy")).toEqual([]);
+    const none = { names: [], caps: {} };
+    for (const id of sameShard) expect(await onDemand.permissionNames(id, "izzy")).toEqual(none);
+    expect(await onDemand.permissionNames("__proto__", "izzy")).toEqual(none);
+    expect(await onDemand.permissionNames("constructor", "izzy")).toEqual(none);
   });
 
   test("a shard that cannot be loaded rejects the names", async () => {

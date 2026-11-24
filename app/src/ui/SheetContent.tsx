@@ -19,14 +19,13 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { iconOwner, iconSourceWords } from "../catalog/credits.ts";
 import { detailsSource, factLinkName, factsFor, hasStatistics, licenseLinks, ownerOthers, pricingLabel, privilegeWarning, statisticsFor, termChips, valueLink, type Fact, type FactLink, type Statistics } from "../catalog/facts.ts";
-import type { Description, IconRecord } from "../catalog/load.ts";
+import type { DetailsRead, IconRecord } from "../catalog/load.ts";
 import { originName, type Entry } from "../catalog/model.ts";
 import type { Listing, ListingTag } from "../catalog/schema.ts";
 import { descriptionBlocks, descriptionSize, type DescriptionBlock } from "../catalog/description.ts";
 import { framedNote } from "../catalog/statements.ts";
 import { formatDate, licenseName, parseTime, timeAgo } from "../lib/format.ts";
 import { actionsFor, hostOf, platformOf, readableUrl, safeWebUrl, shareUrl, type Action, type ActionKind } from "../links.ts";
-import { reloadForNewShell } from "../offline/client.ts";
 import { PRODUCT_NAME } from "../product.ts";
 import { categoryRoute, filterRoute, HOW_COUNTED, regionRoute } from "../router/route.ts";
 import { announce, useServices } from "../services.ts";
@@ -36,7 +35,7 @@ import { Icon, type IconName } from "./Icon.tsx";
 import { AppLink, RouteLink } from "./Link.tsx";
 import { NoteEditor } from "./NoteEditor.tsx";
 import { PermissionDetails } from "./Permissions.tsx";
-import { useOnDemand } from "./on-demand.ts";
+import { NotLoaded, useOnDemand, type Loadable } from "./on-demand.tsx";
 import { qrDrawing } from "./qr.ts";
 import { Breakable, Names } from "./Whole.tsx";
 
@@ -333,13 +332,14 @@ function ListingBlock({ listing, entry }: { listing: Listing; entry: Entry }) {
  * What the entry is: its summary and its long description, each with who it
  * is from. When both are from one source the name is said once, under the
  * description. A summary or a description nobody gives is simply absent.
+ *
+ * @param description the sheet's one read of the details shards, which the permission row shares, with its one retry
  */
-function Described({ entry, actions }: { entry: Entry; actions: Action[] }) {
-  const { model, onDemand } = useServices();
+function Described({ entry, actions, description }: { entry: Entry; actions: Action[]; description: Loadable<DetailsRead | null> }) {
+  const { model } = useServices();
   const { summary } = entry.app;
   const asked = entry.app.index.map((facts) => facts.origin);
-  const description = useOnDemand<Description | null>(entry.app.id, () => (asked.length ? onDemand.description(entry.app.id, asked) : Promise.resolve(null)));
-  const first = description.state === "ready" ? description.value : null;
+  const first = description.state === "ready" ? (description.value?.description ?? null) : null;
   const blocks = first ? descriptionBlocks(first.text, summary?.value ?? null) : [];
   /* While the description is on its way from the summary's own source, the one credit waits for it. */
   const creditFollows = summary !== null && (blocks.length > 0 ? first?.origin === summary.origin : description.state === "loading" && asked.some((origin) => origin === summary.origin));
@@ -350,17 +350,7 @@ function Described({ entry, actions }: { entry: Entry; actions: Action[] }) {
       {summary && <p class="sheet-summary" dir="auto">{summary.value}</p>}
       {summary && !creditFollows && <p class="credit">From {originName(model, summary.origin)}</p>}
       {asked.length > 0 && description.state === "loading" && <p class="credit-note" role="status">Loading…</p>}
-      {description.state === "failed" && (description.behind ? (
-        <p class="credit-note" role="status">
-          A newer catalog is out.{" "}
-          <button type="button" class="link-btn retry-btn" onClick={() => void reloadForNewShell()}>Reload</button>
-        </p>
-      ) : (
-        <p class="credit-note" role="status">
-          The description did not load.{" "}
-          <button type="button" class="link-btn retry-btn" onClick={description.retry}>Try again</button>
-        </p>
-      ))}
+      {description.state === "failed" && <NotLoaded loaded={description} what="description" />}
       {first && blocks.length > 0 && (
         <div class="sheet-desc">
           <Description blocks={blocks} />
@@ -533,9 +523,11 @@ function ResourceContent({ entry, actions }: { entry: Entry; actions: Action[] }
 }
 
 export function SheetContent({ entry }: { entry: Entry }) {
-  const { model, platform, framed } = useServices();
+  const { model, platform, framed, onDemand } = useServices();
   const { app } = entry;
   const actions = actionsFor(app, platform, framed);
+  const indexedBy = app.index.map((index) => index.origin);
+  const details = useOnDemand(app.id, () => (indexedBy.length ? onDemand.detailsRead(app.id, indexedBy) : Promise.resolve(null)));
   if (entry.resource) return <ResourceContent entry={entry} actions={actions} />;
 
   const facts = factsFor(model, entry);
@@ -567,7 +559,7 @@ export function SheetContent({ entry }: { entry: Entry }) {
         {warning && (
           <p class="sheet-warning" role="note"><Icon name="warn" size={18} /><span>{warning}</span></p>
         )}
-        <Described entry={entry} actions={actions} />
+        <Described entry={entry} actions={actions} description={details} />
       </section>
 
       <NoteEditor entry={entry} />
@@ -581,7 +573,7 @@ export function SheetContent({ entry }: { entry: Entry }) {
         <dl class="facts">
           {facts.map((fact) => (
             <FactRow key={fact.key} fact={fact} shared={shared} entry={entry}>
-              {fact.key === "permissions" && <PermissionDetails key={entry.app.id} entry={entry} shared={shared} />}
+              {fact.key === "permissions" && <PermissionDetails key={entry.app.id} entry={entry} details={details} />}
             </FactRow>
           ))}
         </dl>
