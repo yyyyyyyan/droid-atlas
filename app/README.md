@@ -274,8 +274,10 @@ UI helpers worth knowing before changing a screen:
    build is rendered. Without one (first visit, no service worker), `load.ts`
    fetches `data/version.json` past the HTTP cache.
 2. `load.ts` fetches the manifest and `source.ts` the atlas, source, index and
-   GitHub parts. Each is checked against the manifest's sha256 and its header
-   is kept (`LoadedCatalog.parts`) for the Sources page. `crypto.subtle`
+   GitHub parts, and Android's permission statements where the build has
+   them (`LoadedCatalog.android`, read by `catalog/permissions.ts`). Each is
+   checked against the manifest's sha256 and its header is kept
+   (`LoadedCatalog.parts`) for the Sources page. `crypto.subtle`
    exists only on secure origins; elsewhere the build is loaded and recorded
    as `verified: false`, which Data health states.
 3. `joinCatalog` (shared with the pipeline) builds the `Catalog`; `model.ts`
@@ -286,7 +288,12 @@ UI helpers worth knowing before changing a screen:
    app, from its first repository index, so the origins in `App.index` are
    tried in the pipeline's order (F-Droid, then IzzyOnDroid) and the second
    shard is requested only when the first has no description for that app.
-   An app no repository indexes fetches none.
+   An app no repository indexes fetches none. The permission names behind a
+   count are in the same shards, each index's in its own. The closed
+   permission row uses only the names in the shards the description lookup
+   read (`OnDemand.detailsRead`), so it adds no request; the other index's
+   shard is fetched when "Show names" is chosen, and not before
+   (`ui/Permissions.tsx`).
 
 Failures are one of four `CatalogError` kinds (`offline`, `missing`,
 `newer-schema`, `damaged`), each with its own screen in `main.tsx`.
@@ -364,7 +371,7 @@ names are identifiers on users' devices. They deliberately do not follow
 | Cache | Holds | Bound |
 |---|---|---|
 | `droid-atlas:shell:<version>` | One version of the app's own files | One after a purge. A newer worker adds its own while it installs and waits |
-| `droid-atlas:build:<dir>` | One catalog build: its parts, and the description shards and icon credits viewed from it | One after a purge. Each update adds one |
+| `droid-atlas:build:<dir>` | One catalog build: its parts, and the details shards and icon credits viewed from it | One after a purge. Each update adds one |
 | `droid-atlas:pointer` | Which build is current, which was before it, which build the icon cache was last cleared for, and what the worker knows of each open window of the app (`pointer/window/<id>.json`) | Three small entries, and one per open window: entries of windows that are gone are deleted at each launch |
 | `droid-atlas:icons` | Icons as they are viewed, shared by all builds | After a purge, only icons the current build's entries use: two files per entry at most (list size and large size) |
 | `droid-atlas:viewed` | License texts and the third-party notice, as opened; network-first | One entry per file the app links to, a fixed set of a few dozen; a text that changes replaces its entry |

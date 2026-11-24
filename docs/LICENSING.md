@@ -27,8 +27,9 @@ option.
 |---|---|---|---|
 | **Android FOSS** list (`offa/android-foss` README): app names, project URLs, F-Droid/IzzyOnDroid links, section structure and order, membership | GPL-3.0. `LICENSE` is the GPLv3 text and the README badge says "GPLv3". No "or any later version" statement, so it is treated as **GPL-3.0-only** | Extract into its own file `sources/android-foss.json`. We compute first-seen dates ourselves from git history | A file-level notice: source, commit, license, and the statement "modified by Droid Atlas on <date>". The GPL text is shipped with the site. A credit line on the Sources page and on every listing block. Source: the public repo (pipeline included), plus a snapshot of the upstream README at the pinned commit. No added restrictions |
 | **awesome-shizuku** text (`timschneeb/awesome-shizuku`): descriptions, tags, ✨ picks, license tags, closed-source and archived pages, category notes | **CC-BY-SA-3.0 Unported**. Both `LICENSE` and the README "License" section say so | Extract into its own file `sources/awesome-shizuku.json`. This is an Adaptation, released under **CC-BY-SA-3.0**. Text stays verbatim; any trim is marked as an excerpt | A credit on each listing ("From awesome-shizuku · CC BY-SA 3.0", linked). The Sources page gives the title, authors, URI, license URI and a statement of changes. Its text never goes into another file or into the JS bundle |
-| **F-Droid index** `index-v2.json`: summary, description excerpt, license id, categories, anti-features, versions, SDK, size, dates, permissions | The index is built from `fdroiddata`, which is **AGPL-3.0** (its `LICENSE` file and GitLab license; no "or later" statement found, so treated as AGPL-3.0-only). Summaries, descriptions and graphics usually come from each app's own repository, under that app's license | `sources/fdroid.json`: facts, the summary and the reason given for each anti-feature. A description excerpt is loaded on demand. Booleans are derived from the permission lists | Credit "F-Droid" with a link to the app's F-Droid page. A per-record statement that text is under the app's license (`license` field), and may also be under AGPL-3.0 (fdroiddata). Excerpts are marked. The AGPL and app license texts ship with the site. Source link |
+| **F-Droid index** `index-v2.json`: summary, description excerpt, license id, categories, anti-features, versions, SDK, size, dates, permissions | The index is built from `fdroiddata`, which is **AGPL-3.0** (its `LICENSE` file and GitLab license; no "or later" statement found, so treated as AGPL-3.0-only). Summaries, descriptions and graphics usually come from each app's own repository, under that app's license | `sources/fdroid.json`: facts, the summary and the reason given for each anti-feature. A description excerpt and the permission names are loaded on demand. Booleans are derived from the permission lists | Credit "F-Droid" with a link to the app's F-Droid page. A per-record statement that text is under the app's license (`license` field), and may also be under AGPL-3.0 (fdroiddata). Excerpts are marked. The AGPL and app license texts ship with the site. Source link |
 | **IzzyOnDroid index** `index-v2.json` | `repodata` states "**AGPL-3.0-or-later** … with its all content". Descriptions and graphics come from each app's repository through Fastlane | `sources/izzy.json`, handled the same way as F-Droid | The same as F-Droid, with the credit "IzzyOnDroid" |
+| **Android's permission statements** (`platform/frameworks/base` at a platform release tag: `core/res/AndroidManifest.xml`, `core/res/res/values/strings.xml`): each permission's name, protection level and English label | **Apache-2.0**. Both files carry "Copyright 2006, The Android Open Source Project" and the Apache License header; the repository's `NOTICE` file holds the attribution notice for Android's own code | A committed table, `pipeline/android/permissions.json` (Apache-2.0 in `REUSE.toml`), written by hand from a pinned tag. Each build ships the rows for the names apps declare as `sources/android-permissions.json` (§2.L) | The license text with the site and in `LICENSES/`. The files' copyright notices, the `NOTICE` attribution and a statement of changes in the table and in the part's header. A credit on the Sources page and, in the app, "Android 17" beside the groups and labels |
 | **App icons** | Each app author's work. F-Droid requires that "All assets need to have valid legal licenses". The `NonFreeAssets` anti-feature flags artwork under NC/ND licenses | Self-host 192 and 384 px WebP files from the sources and rules in §1.3, whatever the app's license; remove on request. Never hot-link | `icons.json` attribution records and a generated attribution page. License texts. A link to each app's source. A removal contact |
 | **GitHub** (GraphQL): stars, pushed-at, archived, renamed-to, topics, latest release, `.apk` asset, description | GitHub ToS §D/§H and the Acceptable Use Policies (AUP) §7–8. A description belongs to the repository owner | `sources/github.json`: facts. The description is shown only when no licensed description exists | The text label "GitHub" (no logo), a link to the repository, and no personal data |
 | **Our code** (pipeline + app) | **GPL-3.0-or-later** (recommended, §2.H) | n/a | `LICENSES/`, SPDX headers / `REUSE.toml`. A "Source code" link in the app that gives the commit |
@@ -52,7 +53,8 @@ data/c/<hash>/sources/awesome-shizuku.json      CC-BY-SA-3.0
 data/c/<hash>/sources/fdroid.json               per-record license (app license) + AGPL-3.0-only notice
 data/c/<hash>/sources/izzy.json                 per-record license (app license) + AGPL-3.0-or-later notice
 data/c/<hash>/sources/github.json               facts; descriptions © their repository owners
-data/c/<hash>/details/<source>/<n>.json         long-text shards, one source per shard
+data/c/<hash>/sources/android-permissions.json  Apache-2.0: Android's statements about the permissions apps declare
+data/c/<hash>/details/<source>/<n>.json         long-text and permission-name shards, one source per shard
 data/c/<hash>/icons.json                        one attribution record per shipped icon
 data/icons/<content-hash>.webp                  icons (license per record in icons.json)
 data/upstream/android-foss/<commit>.md          README snapshot used for the build (GPL source, see §2.A)
@@ -1034,6 +1036,38 @@ from the invented entries in `scripts/fixture/`.
 
 ---
 
+### L. Android's permission statements
+
+Researched on 2026-11-24 against `platform/frameworks/base` at
+`android-17.0.0_r1` (commit `94b4c163b7dfe5ce3607f7bb8456f9573f7de57d`) and
+the Apache License 2.0 as SPDX publishes it.
+
+**What is used.** From `core/res/AndroidManifest.xml`, each `<permission>`
+element's name and protection level; from `core/res/res/values/strings.xml`,
+the default English text of the string its `android:label` names. Not the
+descriptions (`android:description`), not other languages, not the groups.
+Both files open with "Copyright 2006, The Android Open Source Project" and
+the Apache License 2.0 header. The repository carries `MODULE_LICENSE_APACHE2`
+and a `NOTICE` file whose first section is the notice for "Android Code".
+
+**What the license asks of a redistribution (§4).**
+
+| Clause | Asks | What Droid Atlas does |
+|---|---|---|
+| 4(a) | Give recipients a copy of the license | `LICENSES/Apache-2.0.txt` in the repository; `data/licenses/Apache-2.0.txt` on the site, linked from the Sources page |
+| 4(b) | Modified files carry prominent notices stating that they were changed | The table's `changes` field and the part header's `changes` say what was extracted and how: escapes resolved, labels that are not plain text left out, declarations behind a build flag resolved by the release configuration, only the names apps declare kept, written to JSON, with the date. The Sources page shows it |
+| 4(c) | Keep the copyright, patent, trademark and attribution notices of the source form that pertain to the part distributed | The part header's attribution quotes both files' copyright notice and names the files, the repository and the tag. `REUSE.toml` gives the table "2006 The Android Open Source Project" |
+| 4(d) | Include the attribution notices of the work's `NOTICE` file that pertain to the derivative work | The part header quotes the "Android Code" section of `NOTICE` (`AOSP_NOTICE` in `pipeline/android-part.ts`): "Android Code. Copyright 2005-2008 The Android Open Source Project. This product includes software developed as part of The Android Open Source Project (http://source.android.com)." The other sections cover third-party code (Apache Commons, Unicode data and others), none of which the table is taken from |
+| 6 | No trademark rights | "Android" is used as a word, to say whose statement it is; the trademark notice is §2.G's |
+
+**JUDGMENT.** The table and the part are a derivative of the two files, and
+are kept under Apache-2.0 in a file of their own, as the other sources are:
+Apache-2.0 text may be combined with GPL-3.0 code, but keeping it apart
+leaves its terms plain and the part replaceable. Short labels such as "record
+audio" may not be protected at all; they are handled as if they were. The
+build never fetches Android: a person regenerates the table from a newer tag
+by hand (`pipeline/NOTES.md`).
+
 ## 3. Things to ask upstream
 
 These have not been sent. Each removes a JUDGMENT or OPEN item. The answers
@@ -1145,6 +1179,8 @@ things, this project included. Each follows from a section above.
 
 **On the deployed site**
 
+- Android's statements keep, in their part's header, the files' copyright
+  notices, the `NOTICE` attribution and the statement of changes (§2.L).
 - The license texts under `data/licenses/`, each build's `manifest.json` and
   `icons.json`, and `third-party-licenses.txt` (§1.2, §2.H).
   `scripts/assemble-site.mjs` refuses a site that lacks one of them.

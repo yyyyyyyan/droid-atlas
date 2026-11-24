@@ -174,7 +174,8 @@ upstream is executed or interpolated into markup, a shell command or a path.
 Every fact has two marks: who says so (`Origin` in `schema/catalog.ts`) and
 how it is known (`EvidenceLevel`). The four levels stay apart everywhere:
 
-- **Documented**: the app's own project says so.
+- **Documented**: the project the fact is about says so: the app's own
+  project, or Android about the permissions it defines.
 - **Statically discovered**: a tool read it from the app's package or source,
   without running the app.
 - **Reported**: someone other than the project says so.
@@ -198,6 +199,7 @@ not yet carry the level; the mapping is by kind of fact.
 | Stars, last push, fork parent, new address | GitHub | Reported |
 | Download figures | F-Droid, IzzyOnDroid, GitHub | Reported |
 | A package reading's interfaces (§ Package readings) | The package | Statically discovered |
+| A permission's protection level and label | Android, at the platform release the build names (§ Output) | Documented |
 
 No fact in the catalog is experimentally verified. A facet that combines
 statements keeps the level of each: the Shizuku evidence of one app can hold
@@ -350,7 +352,8 @@ data/c/<hash>/sources/android-foss.json         GPL-3.0-only
 data/c/<hash>/sources/awesome-shizuku.json      CC-BY-SA-3.0
 data/c/<hash>/sources/fdroid.json, izzy.json    facts and summaries; license per record
 data/c/<hash>/sources/github.json               facts
-data/c/<hash>/details/<origin>/<n>.json         shards of long text, one origin per shard
+data/c/<hash>/sources/android-permissions.json  Apache-2.0: Android's statements about the permissions apps declare
+data/c/<hash>/details/<origin>/<n>.json         shards of long text and permission names, one origin per shard
 data/c/<hash>/icons.json                        an attribution record per self-hosted icon
 data/icons/<content-hash>.webp                  icons that pass the policy in LICENSING.md §1.3
 data/upstream/<source>/<commit>…                snapshot of the upstream files a build was made from
@@ -358,8 +361,44 @@ data/report.json, data/report.md                build report
 data/licenses/<SPDX-id>.txt                     text of every license the manifest or icons.json names
 ```
 
-Each index's reason for an anti-feature is short and is part of its index
-facts in `sources/<index>.json`.
+An index's permission names for an app sit in that index's details shard,
+not in `sources/<index>.json`: together they come to about 500 kB of JSON,
+which the start of every visit would otherwise download. They are the
+distinct names of the latest version, sorted alphabetically. The indexes
+list them in an order of their own; sorted, a name can be found by eye and
+two indexes' lists compared line by line. An index entry keeps at most 500
+names, and only names of printable characters without spaces; the count
+stays the index's, and the sheet says under a list how many names it does
+not show. Each index's reason for an anti-feature is short and stays in its
+index facts.
+
+What Android states about each permission it defines, its protection level
+and its label, comes from `platform/frameworks/base` at a platform release
+tag, read by hand into the committed table `pipeline/android/permissions.json`
+(`pipeline/NOTES.md` § Android's permission statements). Each build keeps the
+rows for the names some app declares, about 280 rows and 6 kB compressed, in
+`sources/android-permissions.json`, which the app loads at start with the
+other parts. It is loaded at start because the closed permission row uses it:
+under the count, the row names what each index lists that Android asks for
+while the app runs, from the details shards the sheet reads for the
+description and no other. Opened, the names are grouped by the stated level,
+and each heading is true of every level under it:
+
+| Group | Levels | What Android states |
+|---|---|---|
+| Asked for while it runs | base `dangerous` | Runtime permissions: the system prompts while the app runs |
+| Special access | the `appop` flag | Special permissions, tied to an app operation |
+| Granted at install | base `normal` | Granted automatically when the app is installed |
+| Granted with developer tools | base `signature` or `internal` with `development` | Can also be granted to development applications |
+| Granted with a role | the same bases with `role` | Managed by role |
+| Granted by signing key | the same bases with `knownSigner` | Granted to apps signed with a key Android lists |
+| Granted to built-in apps | the same bases with no flag but those for the device's own apps (`privileged`, `preinstalled`, `installer`, `module`…) | Granted to platform-signed or system apps |
+| Other names | no statement, or a level no heading above is true of | Another app's or a vendor's permission, one a module defines, one the release does not define |
+
+A name under one of the app's package ids is folded into one line of its
+own. Labels are quoted, and the groups and labels are credited to the
+Android version. A declared permission is not a used one, and a level can
+differ between versions; the Sources page says so once.
 
 `<hash>` in a directory name is a digest of the bytes of every file in that
 build, so nothing under `data/c/` is ever rewritten in place. It is not the

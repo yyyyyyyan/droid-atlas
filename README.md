@@ -71,6 +71,7 @@ names its source, and every app links to its own pages there.
   or works with Shizuku, and pin a search to keep it.
 - **Check an app before you get it.** An app's details show its description,
   statistics and who lists it, each with its source. They also show the
+  permissions its index lists, grouped by how Android grants them, and the
   index's reason for each anti-feature.
 - **Follow a fact to other apps.** An app's license leads to the other apps
   under it. When the owner of an app's repository has other apps here, its
@@ -102,8 +103,9 @@ If Settings shows no install button, open the browser's menu and select
 |---|---|
 | [Android FOSS](https://github.com/offa/android-foss) | Names, links and the list's categories |
 | [awesome-shizuku](https://github.com/timschneeb/awesome-shizuku) | Names, links, descriptions and tags |
-| [F-Droid](https://f-droid.org) and [IzzyOnDroid](https://apt.izzysoft.de/fdroid/) | Summaries, descriptions, licenses, versions, icons and download figures. Anti-features: their flags for things you may not want, such as ads or tracking, with the reason they give |
+| [F-Droid](https://f-droid.org) and [IzzyOnDroid](https://apt.izzysoft.de/fdroid/) | Summaries, descriptions, licenses, versions, permissions, icons and download figures. Anti-features: their flags for things you may not want, such as ads or tracking, with the reason they give |
 | GitHub | Stars, activity, archived and moved repositories, latest releases |
+| [Android](https://source.android.com) | How each permission is granted, and its label, as one Android release states them. Read from that release once, not daily |
 
 The catalog is rebuilt every day from these sources. A build is published only
 when every source was read and every check passed. Otherwise the previous
@@ -167,7 +169,8 @@ configuration files are dedicated to the public domain under
 
 The catalog data on the site stays under its sources' licenses: Android FOSS
 under GPL-3.0-only, awesome-shizuku under CC-BY-SA-3.0, the F-Droid and
-IzzyOnDroid text under each app's license. Each data file says which.
+IzzyOnDroid text under each app's license, Android's permission statements
+under Apache-2.0. Each data file says which.
 [NOTICE.md](NOTICE.md) has the sources, credits, icon policy and trademark
 notices. [REUSE.toml](REUSE.toml) gives the license of every file in the
 repository.
