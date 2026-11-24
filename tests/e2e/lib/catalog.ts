@@ -282,11 +282,11 @@ export const FILTER_TESTS: Record<string, (app: App) => boolean> = {
   recommended: (a) => a.atlas.facets.recommended,
 };
 
-/** The `owner:` token of an app: its repository's forge and owner, the owner in lower case; null for a repository on no named forge, or none. */
+/** The `owner:` token of an app: its repository's forge and owner, the owner in lower case; null for a repository on no named forge, for none, and for an owner segment the slug rule (`schema/catalog.ts` `Repo`) does not allow. */
 export function ownerToken(app: App): string | null {
   const { repo } = app.atlas;
   const owner = repo?.slug?.split("/")[0];
-  return repo && repo.host !== "other" && owner ? `owner:${repo.host}/${owner.toLowerCase()}` : null;
+  return repo && repo.host !== "other" && owner && /^[A-Za-z0-9._~-]{1,100}$/.test(owner) ? `owner:${repo.host}/${owner.toLowerCase()}` : null;
 }
 
 /** Every license a source states for an app, verbatim: F-Droid's, IzzyOnDroid's, each listing's, GitHub's. */
@@ -300,22 +300,40 @@ export function licenseStatements(app: App): { value: string; origin: string }[]
   return stated.filter((statement): statement is { value: string; origin: string } => typeof statement.value === "string" && statement.value !== "");
 }
 
-const NO_LICENSE = /^(proprietary|propietary|no-license|none|noassertion|all-rights-reserved|unlicensed)$/;
-
 /**
- * The `license:` tokens a stated license gives (docs/ARCHITECTURE.md): one
- * per license an `OR` or `/` offers, lower-cased, spaces as hyphens, without
- * `-only`, `-or-later` or `+`; none for a statement that there is no license.
+ * Every license statement the sources made on 2026-11-24, written out with
+ * the license lists it belongs to, as docs/ARCHITECTURE.md § Facts that lead
+ * to lists defines them: one license in its spellings is one list, and a
+ * statement that there is no license is in none. Written by hand, so a fault
+ * in the app's folding rule shows as a difference.
  */
-export function licenseTokensOf(value: string): string[] {
-  return value.split(/\s+OR\s+|\s*\/\s*/i).flatMap((term) => {
-    const name = term.replace(/[()]/g, "").trim().replace(/(-only|-or-later|\+)$/i, "").trim().toLowerCase().replace(/\s+/g, "-");
-    return /^[a-z0-9][a-z0-9.-]{0,63}$/.test(name) && !NO_LICENSE.test(name) ? [`license:${name}`] : [];
-  });
+export const LICENSE_LISTS: Readonly<Record<string, readonly string[]>> = {
+  "GPL-3.0": ["GPL-3.0"], "GPL-3.0-only": ["GPL-3.0"], "GPL-3.0-or-later": ["GPL-3.0"],
+  "AGPL-3.0": ["AGPL-3.0"], "AGPL-3.0-only": ["AGPL-3.0"], "AGPL-3.0-or-later": ["AGPL-3.0"],
+  "GPL-2.0": ["GPL-2.0"], "GPL-2.0-only": ["GPL-2.0"], "GPL-2.0-or-later": ["GPL-2.0"],
+  "LGPL-3.0": ["LGPL-3.0"], "LGPL-3.0-only": ["LGPL-3.0"], "LGPL-3.0-or-later": ["LGPL-3.0"],
+  "LGPL-2.1": ["LGPL-2.1"], "LGPL-2.1-only": ["LGPL-2.1"], "LGPL-2.1-or-later": ["LGPL-2.1"],
+  "MIT": ["MIT"], "Apache-2.0": ["Apache-2.0"], "Apache 2.0": ["Apache-2.0"],
+  "BSD-3-Clause": ["BSD-3-Clause"], "BSD 3-Clause": ["BSD-3-Clause"], "BSD-2-Clause": ["BSD-2-Clause"], "BSD-4-Clause": ["BSD-4-Clause"],
+  "BSD-3-Clause-Clear": ["BSD-3-Clause-Clear"], "MPL-2.0": ["MPL-2.0"], "Modified MPL-2.0": ["Modified MPL-2.0"],
+  "Unlicense": ["Unlicense"], "OSL-3.0": ["OSL-3.0"], "ISC": ["ISC"], "CC0-1.0": ["CC0-1.0"], "CC-BY-4.0": ["CC-BY-4.0"],
+  "CC-BY-NC-ND-4.0": ["CC-BY-NC-ND-4.0"], "EPL-2.0": ["EPL-2.0"], "EUPL-1.2": ["EUPL-1.2"],
+  "PolyForm-Noncommercial-1.0.0": ["PolyForm-Noncommercial-1.0.0"],
+  "Apache-2.0 OR GPL-3.0-or-later": ["Apache-2.0", "GPL-3.0"],
+  "Proprietary": [], "Propietary": [], "No license": [],
+};
+
+/** The `license:` token of each list the suite follows, written out. */
+export const LICENSE_TOKENS: Readonly<Record<string, string>> = { "GPL-3.0": "license:gpl-3.0", "MIT": "license:mit", "Apache-2.0": "license:apache-2.0", "AGPL-3.0": "license:agpl-3.0" };
+
+/** Statements in the build under test that `LICENSE_LISTS` does not know: a source has written a license in a way the table predates. */
+export function unlistedLicenses(build: Build): string[] {
+  return [...new Set(build.apps.flatMap((app) => licenseStatements(app).map((statement) => statement.value)))].filter((value) => !Object.hasOwn(LICENSE_LISTS, value));
 }
 
-export function licenseTokens(app: App): string[] {
-  return [...new Set(licenseStatements(app).flatMap((statement) => licenseTokensOf(statement.value)))];
+/** The license lists an app belongs to, as `LICENSE_LISTS` gives them. */
+export function licenseLists(app: App): string[] {
+  return [...new Set(licenseStatements(app).flatMap((statement) => LICENSE_LISTS[statement.value] ?? []))];
 }
 
 /** The keys of the anti-features either index flags on an app. */
@@ -340,7 +358,7 @@ export function antiFeaturesUsed(build: Build): { id: string; description: strin
 /**
  * Text words must all occur in the searchable text; plain facts must all hold; region, category, source and openness tokens are alternatives within their group.
  * `af:<key>` holds for an app an index flags with that anti-feature, and `no:<key>` for one some index carries without flagging it.
- * `owner:` and `license:` hold as `ownerToken` and `licenseTokens` say.
+ * `owner:` holds as `ownerToken` says, and `license:` as `LICENSE_LISTS` and `LICENSE_TOKENS` write it out.
  */
 export function matchingApps(build: Build, text: string, filters: string[]): App[] {
   const words = fold(text).split(/\s+/).filter(Boolean);
@@ -353,7 +371,11 @@ export function matchingApps(build: Build, text: string, filters: string[]): App
     else if (key.startsWith("af:")) strict.push((a) => antiFeaturesOf(a).includes(key.slice(3)));
     else if (key.startsWith("no:")) strict.push((a) => (a.fdroid !== null || a.izzy !== null) && !antiFeaturesOf(a).includes(key.slice(3)));
     else if (key.startsWith("owner:")) strict.push((a) => ownerToken(a) === key);
-    else if (key.startsWith("license:")) strict.push((a) => licenseTokens(a).includes(key));
+    else if (key.startsWith("license:")) {
+      const list = Object.keys(LICENSE_TOKENS).find((name) => LICENSE_TOKENS[name] === key);
+      if (!list) throw new Error(`no written-out list for ${key}`);
+      strict.push((a) => licenseLists(a).includes(list));
+    }
     else if (key === "open" || key === "source-available" || key === "closed") {
       const test = FILTER_TESTS[key];
       if (test) groups.set("terms", [...(groups.get("terms") ?? []), test]);

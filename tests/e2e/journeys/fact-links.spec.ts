@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "../lib/fixtures.ts";
 import { requireShape } from "../lib/pick.ts";
-import { filteredCount, isLink, licenseStatements, licenseTokensOf, loadBuild, matchingApps, ownerToken, sheetHash, type App } from "../lib/catalog.ts";
+import { filteredCount, isLink, LICENSE_LISTS, LICENSE_TOKENS, licenseLists, licenseStatements, loadBuild, matchingApps, ownerToken, sheetHash, unlistedLicenses, type App } from "../lib/catalog.ts";
 import { countStatus, escapeRegExp, launch, ready, sheet } from "../lib/app.ts";
 
 const build = loadBuild();
@@ -34,49 +34,89 @@ function details(page: Page) {
   return sheet(page).getByRole("region", { name: /^Details/ });
 }
 
-/** A link from a fact to its list: named by its words and the size of the list it leads to. */
-function factLink(page: Page, words: string, token: string) {
-  const size = appsOf([token]).length;
-  return details(page).getByRole("link", { name: new RegExp(`^${escapeRegExp(words)}, ${size.toLocaleString("en")} apps?$`) });
+/** A link from a fact to its list: named by the words it shows and the size of the list, or any size when that is not known. */
+function factLink(page: Page, words: string, size: number | null) {
+  const count = size === null ? "[\\d,]+" : size.toLocaleString("en");
+  return details(page).getByRole("link", { name: new RegExp(`^${escapeRegExp(words)}, ${count} (apps?|entry|entries)$`) });
+}
+
+function licenseRow(page: Page) {
+  return details(page).locator("div.fact", { has: page.locator("dt", { hasText: /^License$/ }) });
 }
 
 function activeChip(page: Page, label: RegExp) {
   return page.getByRole("main").getByRole("group", { name: "Active filters" }).getByRole("button", { name: label });
 }
 
-/** The first spelling of each license an app's sources state, as the sheet shows it, with its token. */
-function statedLicenses(app: App): { value: string; token: string }[] {
-  const seen = new Set<string>();
-  return licenseStatements(app).flatMap((statement) => {
-    const tokens = licenseTokensOf(statement.value);
-    const [token] = tokens;
-    if (tokens.length !== 1 || !token || seen.has(token)) return [];
-    seen.add(token);
-    return [{ value: statement.value, token }];
-  });
+const unlisted = unlistedLicenses(build);
+
+/**
+ * How many entries a license list holds, counted with the written-out table;
+ * null when the build states a license the table does not know, which could
+ * belong to the list, and is recorded on the test.
+ */
+function listSize(list: string): number | null {
+  if (unlisted.length > 0) {
+    test.info().annotations.push({ type: "license statements the table does not know", description: unlisted.join(", ") });
+    return null;
+  }
+  return build.apps.filter((app) => licenseLists(app).includes(list)).length;
 }
 
-test("an app's license leads to the apps under it, with the size of that list, and the list says what it holds", async ({ page }) => {
-  const subject = build.apps.find((app) => !isLink(app) && statedLicenses(app).length === 1 && appsOf([statedLicenses(app)[0]?.token ?? ""]).length > 1);
-  requireShape(subject !== undefined, "app with one stated license shared by other apps");
+const stated = (app: App): string[] => licenseStatements(app).map((statement) => statement.value);
+const preferred = (id: string, fits: (app: App) => boolean): App | undefined => {
+  const named = build.byId.get(id);
+  return named && fits(named) ? named : build.apps.find((app) => !isLink(app) && fits(app));
+};
+
+test("a license stated with a qualifier stays as the source wrote it, and its list is linked by the list's own name and size", async ({ page }) => {
+  const fits = (app: App): boolean => app.fdroid?.license === "GPL-3.0-or-later" && stated(app).every((value) => value === "GPL-3.0-or-later" || value === "GPL-3.0");
+  const subject = preferred("com.amaze.filemanager", fits);
+  requireShape(subject !== undefined, "app F-Droid states as GPL-3.0-or-later and no source otherwise");
   if (!subject) return;
-  const [license] = statedLicenses(subject);
-  if (!license) return;
+  const size = listSize("GPL-3.0");
   await launch(page, sheetHash(subject));
-  const link = factLink(page, license.value, license.token);
+  await expect(licenseRow(page)).toContainText("GPL-3.0-or-later");
+  await expect(licenseRow(page).getByRole("link")).toHaveCount(1);
+  const link = factLink(page, "GPL-3.0", size);
   await expect(link).toBeVisible();
+  await expect(details(page).getByRole("link", { name: /^GPL-3\.0-or-later,/ })).toHaveCount(0);
   await link.click();
-  await expect(page).toHaveURL(new RegExp(`#/search\\?f=${escapeRegExp(license.token)}$`));
-  await expect(countStatus(page)).toHaveText(filteredCount(build, appsOf([license.token])));
-  await expect(activeChip(page, /, remove filter$/)).toHaveCount(1);
+  await expect(page).toHaveURL(/#\/search\?f=license:gpl-3\.0$/);
+  if (size !== null) await expect(countStatus(page)).toHaveText(filteredCount(build, appsOf([LICENSE_TOKENS["GPL-3.0"] ?? ""])));
+  await expect(activeChip(page, /^GPL-3\.0\s*, remove filter$/)).toBeVisible();
+});
+
+test("where a source's words are the list's name, they are the one link", async ({ page }) => {
+  const subject = preferred("", (app) => stated(app).length > 0 && stated(app).every((value) => value === "MIT"));
+  requireShape(subject !== undefined, "app every source states as MIT");
+  if (!subject) return;
+  await launch(page, sheetHash(subject));
+  await expect(licenseRow(page).getByRole("link")).toHaveCount(1);
+  await expect(factLink(page, "MIT", listSize("MIT"))).toBeVisible();
+});
+
+test("two sources stating one license in two ways are two lines, and the list is linked once", async ({ page }) => {
+  const subject = preferred("", (app) => {
+    const values = licenseStatements(app);
+    return values.some((s) => s.value === "GPL-3.0-only") && values.some((s) => s.value === "GPL-3.0-or-later") && values.every((s) => (LICENSE_LISTS[s.value] ?? []).join() === "GPL-3.0");
+  });
+  requireShape(subject !== undefined, "app one source states as GPL-3.0-only and another as GPL-3.0-or-later");
+  if (!subject) return;
+  await launch(page, sheetHash(subject));
+  await expect(licenseRow(page).locator(".fact-line")).toHaveCount(2);
+  await expect(licenseRow(page)).toContainText("GPL-3.0-only");
+  await expect(licenseRow(page)).toContainText("GPL-3.0-or-later");
+  await expect(licenseRow(page).getByRole("link")).toHaveCount(1);
+  await expect(factLink(page, "GPL-3.0", listSize("GPL-3.0"))).toBeVisible();
 });
 
 test("two sources stating different licenses: each license leads to its own list", async ({ page }) => {
-  const subject = build.apps.find((app) => !isLink(app) && statedLicenses(app).length >= 2);
+  const subject = preferred("at.tomtasche.reader", (app) => licenseLists(app).length >= 2 && stated(app).every((value) => Object.hasOwn(LICENSE_LISTS, value)));
   requireShape(subject !== undefined, "app whose sources state two different licenses");
   if (!subject) return;
   await launch(page, sheetHash(subject));
-  for (const license of statedLicenses(subject)) await expect(factLink(page, license.value, license.token)).toBeVisible();
+  for (const list of licenseLists(subject)) await expect(factLink(page, list, listSize(list))).toBeVisible();
 });
 
 test("the owner of an app's repository leads to the catalog's other entries of theirs, and names a few of them", async ({ page }) => {
@@ -85,10 +125,10 @@ test("the owner of an app's repository leads to the catalog's other entries of t
   const subject = group?.find((app) => !isLink(app));
   if (!token || !group || !subject) return;
   await launch(page, sheetHash(subject));
-  const link = factLink(page, ownerWords(subject), token);
+  const link = factLink(page, ownerWords(subject), group.length);
   await expect(link).toBeVisible();
   const others = group.filter((app) => app !== subject).sort((a, b) => a.name.localeCompare(b.name));
-  await expect(details(page).getByText(/^Also /)).toContainText(others.length > 3 ? `and ${others.length - 3} more` : others.at(-1)?.name ?? "");
+  await expect(details(page).locator(".fact-others")).toContainText(others.length > 3 ? `and ${others.length - 3} more` : others.at(-1)?.name ?? "");
   await link.click();
   await expect(page).toHaveURL(new RegExp(`#/search\\?f=${escapeRegExp(token)}$`));
   await expect(countStatus(page)).toHaveText(filteredCount(build, group));
@@ -116,7 +156,7 @@ test("the fact links are links the keyboard reaches and follows", async ({ page 
   requireShape(token !== undefined && subject !== undefined, "repository owner with two entries or more");
   if (!token || !subject) return;
   await launch(page, sheetHash(subject));
-  const link = factLink(page, ownerWords(subject), token);
+  const link = factLink(page, ownerWords(subject), owners.get(token)?.length ?? null);
   await expect(link).toHaveAttribute("href", `#/search?f=${token}`);
   await link.focus();
   await expect(link).toBeFocused();
@@ -169,9 +209,8 @@ async function relaunch(page: Page, hash: string): Promise<void> {
 test.describe("a shared link and a pin with an owner or a license token", () => {
   test("survive a reload and a new catalog build", async ({ page }) => {
     const [owner, group] = ownerGroups[0] ?? [];
-    const [license] = [...new Set(build.apps.flatMap((app) => statedLicenses(app).map((stated) => stated.token)))]
-      .sort((a, b) => appsOf([b]).length - appsOf([a]).length);
-    requireShape(owner !== undefined && license !== undefined && group !== undefined, "repository owner with two entries or more, and a stated license");
+    const license = LICENSE_TOKENS["GPL-3.0"];
+    requireShape(owner !== undefined && license !== undefined && group !== undefined && appsOf([license ?? ""]).length > 0, "repository owner with two entries or more, and an app under GPL-3.0");
     if (!owner || !license || !group) return;
     const unrelated = build.apps.find((app) => ownerToken(app) !== owner && !appsOf([license]).includes(app));
     for (const token of [owner, license]) {
