@@ -17,6 +17,7 @@ const TABLE: AndroidTable = {
     license: "Apache-2.0",
   },
   androidVersion: "17",
+  apiLevel: 37,
   changes: "Extracted by Droid Atlas on 2026-11-24.",
   permissions: [
     { name: "org.fixture.permission.A", protectionLevel: "dangerous", label: "do a" },
@@ -38,7 +39,7 @@ test("the part keeps Android's statement for every name an app declares, and no 
     "org.fixture.permission.A": { protectionLevel: "dangerous", label: "do a" },
     "org.fixture.permission.B": { protectionLevel: "normal", label: null },
   });
-  assert.deepEqual(part.android, { version: "17", tag: "android-17.0.0_r1", commit: "a".repeat(40) });
+  assert.deepEqual(part.android, { version: "17", apiLevel: 37, tag: "android-17.0.0_r1", commit: "a".repeat(40) });
 });
 
 test("the header names the release, its license, the files' notices and what was changed", () => {

@@ -5,6 +5,7 @@ import {
   buildTable,
   checkAndroidTable,
   isProtectionLevel,
+  parseBuildFlagValue,
   parseFlagValues,
   parseReleaseConfig,
   permissionDeclarations,
@@ -172,6 +173,12 @@ test("release flags come from every configuration a release inherits, and one se
   assert.throws(() => resolveFlags("top", cyclic, values, wanted), /cycle/);
   assert.throws(() => parseFlagValues(`flag_value { package: "org.fixture.flags" name: "a" state: MAYBE }`), /malformed/);
   assert.throws(() => parseReleaseConfig(`inherits: "x"`), /exactly one name/);
+
+  const permissions = parseFlagValues(
+    `flag_value { package: "org.fixture.flags" name: "ro" state: ENABLED permission: READ_ONLY }\nflag_value { package: "org.fixture.flags" name: "rw" state: DISABLED permission: READ_WRITE }\nflag_value { package: "org.fixture.flags" name: "unstated" state: ENABLED }`,
+    "permission",
+  );
+  assert.deepEqual(permissions, new Map([["org.fixture.flags.ro", true], ["org.fixture.flags.rw", false]]), "read-only is true, read-write false, and a value that states neither is left out");
 });
 
 function fixtureTable(): AndroidTable {
@@ -190,6 +197,7 @@ function fixtureTable(): AndroidTable {
       license: "Apache-2.0",
     },
     androidVersion: "17",
+    apiLevel: 37,
     changes: "Extracted by Droid Atlas.",
     permissions: rows,
   };
@@ -214,10 +222,17 @@ test("a table that fails any check is refused when read", () => {
     ["other host", (t) => ({ ...t, source: { ...t.source, repository: "https://example.org/base" } })],
     ["other license", (t) => ({ ...t, source: { ...t.source, license: "MIT" } })],
     ["version not the tag's", (t) => ({ ...t, androidVersion: "16" })],
+    ["API level not a whole number", (t) => ({ ...t, apiLevel: 37.5 })],
+    ["API level missing", (t) => ({ ...t, apiLevel: undefined })],
     ["not a release tag", (t) => ({ ...t, source: { ...t.source, tag: "main" } })],
     ["too many rows", (t) => ({ ...t, permissions: Array.from({ length: 5001 }, (_, i) => ({ name: `a.P${String(i).padStart(5, "0")}`, protectionLevel: "normal", label: null })) })],
   ];
   for (const [what, change] of bad) assert.throws(() => checkAndroidTable(change(structuredClone(good))), Error, what);
+});
+
+test("a build flag value gives its name and string, and anything else is refused", () => {
+  assert.deepEqual(parseBuildFlagValue(`name:  "RELEASE_PLATFORM_SDK_VERSION"\nvalue:  {\n  string_value:  "37"\n}\n`), { name: "RELEASE_PLATFORM_SDK_VERSION", value: "37" });
+  assert.throws(() => parseBuildFlagValue(`name: "RELEASE_PLATFORM_SDK_VERSION"\nvalue: { bool_value: true }`), /string value/);
 });
 
 test("levels are a known base and known flags, each once", () => {

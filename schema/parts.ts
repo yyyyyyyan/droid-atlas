@@ -189,7 +189,8 @@ export interface AndroidPermission {
  */
 export interface AndroidPermissionsPart {
   header: PartHeader;
-  android: { version: string; tag: string; commit: string };
+  /** The release: its version, its API level, the tag and commit read. */
+  android: { version: string; apiLevel: number; tag: string; commit: string };
   permissions: Record<string, AndroidPermission>;
 }
 

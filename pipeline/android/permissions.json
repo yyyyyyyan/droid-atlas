@@ -15,7 +15,8 @@
     "license": "Apache-2.0"
   },
   "androidVersion": "17",
-  "changes": "Extracted by Droid Atlas on 2026-11-24 from core/res/AndroidManifest.xml and core/res/res/values/strings.xml at android-17.0.0_r1: each permission's name and protection level as stated, and its label's default English text with Android's string escapes resolved; a label that is not one line of plain text is left out; declarations behind a build flag kept or left out by the flag values of release configuration cp2a in platform/build/release at android-17.0.0_r1, a flag it does not set counting as off.",
+  "apiLevel": 37,
+  "changes": "Extracted by Droid Atlas on 2026-11-24 from core/res/AndroidManifest.xml and core/res/res/values/strings.xml at android-17.0.0_r1: each permission's name and protection level as stated, and its label's default English text with Android's string escapes resolved; a label that is not one line of plain text is left out; declarations behind a build flag kept or left out by the flag values of release configuration cp2a in platform/build/release at android-17.0.0_r1, the release's default configuration, a flag it does not set counting as off; API level 37 as that configuration states it.",
   "permissions": [
     {"name":"android.intent.category.MASTER_CLEAR.permission.C2D_MESSAGE","protectionLevel":"signature","label":null},
     {"name":"android.permission.ACCEPT_HANDOVER","protectionLevel":"dangerous","label":null},

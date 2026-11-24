@@ -74,6 +74,8 @@ export interface AndroidTable {
   source: TableSource;
   /** The Android version the tag is a release of, as its tag names it ("17"). */
   androidVersion: string;
+  /** The API level of that release, as its release configuration states it (`RELEASE_PLATFORM_SDK_VERSION`). */
+  apiLevel: number;
   /** What Droid Atlas changed in the statements, as the license asks a changed file to say. */
   changes: string;
   permissions: TableRow[];
@@ -208,16 +210,22 @@ export function parseReleaseConfig(text: string): ReleaseConfig {
   return { name, inherits: textprotoStrings(text, "inherits"), valueSets: textprotoStrings(text, "aconfig_value_sets") };
 }
 
-/** The flag values one `*_flag_values.textproto` file sets, by "<package>.<name>". */
-export function parseFlagValues(text: string): Map<string, boolean> {
+/**
+ * What one `*_flag_values.textproto` file sets, by "<package>.<name>": with
+ * "state", whether each flag is enabled; with "permission", whether it is
+ * read-only (a flag whose value states no permission is left out).
+ */
+export function parseFlagValues(text: string, read: "state" | "permission" = "state"): Map<string, boolean> {
   const values = new Map<string, boolean>();
   const blocks = text.replace(/#[^\n]*/g, "").match(/flag_value\s*\{[^{}]*\}/g) ?? [];
   for (const block of blocks) {
     const pkg = /package:\s*"([^"]+)"/.exec(block)?.[1];
     const name = /\bname:\s*"([^"]+)"/.exec(block)?.[1];
     const state = /state:\s*(ENABLED|DISABLED)\b/.exec(block)?.[1];
+    const permission = /permission:\s*(READ_ONLY|READ_WRITE)\b/.exec(block)?.[1];
     if (!pkg || !name || !state || !FLAG_NAME.test(`${pkg}.${name}`)) throw new Error(`a malformed flag value: ${block.replace(/\s+/g, " ").slice(0, 120)}`);
-    values.set(`${pkg}.${name}`, state === "ENABLED");
+    if (read === "state") values.set(`${pkg}.${name}`, state === "ENABLED");
+    else if (permission) values.set(`${pkg}.${name}`, permission === "READ_ONLY");
   }
   return values;
 }
@@ -299,6 +307,14 @@ export function buildTable(declarations: readonly Declaration[], strings: Map<st
   return { rows: sorted, counts: { declarations: declarations.length, leftOutByFlag, flagNotSet, rows: sorted.length, labels: sorted.filter((row) => row.label !== null).length } };
 }
 
+/** The value of a build flag (`flag_values/<configuration>/<NAME>.textproto`), as written. */
+export function parseBuildFlagValue(text: string): { name: string; value: string } {
+  const name = /^\s*name:\s*"([A-Z0-9_]+)"/m.exec(text)?.[1];
+  const value = /string_value:\s*"([^"\\]{0,100})"/.exec(text)?.[1];
+  if (!name || value === undefined) throw new Error("a build flag value without a name and a string value");
+  return { name, value };
+}
+
 /** The Android version a release tag names: "android-17.0.0_r1" is "17". */
 export function androidVersionOf(tag: string): string {
   const match = /^android-(\d{1,3})\.\d+(?:\.\d+)?_r\d+$/.exec(tag);
@@ -308,7 +324,7 @@ export function androidVersionOf(tag: string): string {
 
 /** The table as committed: one row per line, so a new tag's changes read as a diff of rows. */
 export function serializeTable(table: AndroidTable): string {
-  const head = JSON.stringify({ source: table.source, androidVersion: table.androidVersion, changes: table.changes }, null, 2).replace(/\n}$/, "");
+  const head = JSON.stringify({ source: table.source, androidVersion: table.androidVersion, apiLevel: table.apiLevel, changes: table.changes }, null, 2).replace(/\n}$/, "");
   const rows = table.permissions.map((row) => `    ${JSON.stringify(row)}`).join(",\n");
   return `${head},\n  "permissions": [\n${rows}\n  ]\n}\n`;
 }
@@ -344,6 +360,8 @@ export function checkAndroidTable(value: unknown): AndroidTable {
   };
   const androidVersion = plainField(value.androidVersion, /^\d{1,3}$/, "Android version");
   if (androidVersionOf(source.tag) !== androidVersion) throw new Error("the Android table's version is not its tag's");
+  const { apiLevel } = value;
+  if (typeof apiLevel !== "number" || !Number.isInteger(apiLevel) || apiLevel < 1 || apiLevel > 1000) throw new Error("the Android table's API level is not in the expected form");
   if (typeof value.changes !== "string" || value.changes.length > 2_000 || /[\p{Cc}]/u.test(value.changes)) throw new Error("the Android table's statement of changes is not in the expected form");
   if (value.permissions.length > TABLE_ROW_LIMIT) throw new Error(`the Android table has more than ${TABLE_ROW_LIMIT} rows`);
   const permissions: TableRow[] = [];
@@ -358,7 +376,7 @@ export function checkAndroidTable(value: unknown): AndroidTable {
     permissions.push({ name, protectionLevel, label });
     previous = name;
   }
-  return { source, androidVersion, changes: value.changes, permissions };
+  return { source, androidVersion, apiLevel, changes: value.changes, permissions };
 }
 
 export const ANDROID_TABLE_PATH = new URL("../android/permissions.json", import.meta.url);

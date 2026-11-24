@@ -42,7 +42,7 @@ export function androidPermissionsPart(table: AndroidTable, details: Record<"fdr
   }
   return {
     header: androidHeader(table, date),
-    android: { version: table.androidVersion, tag: table.source.tag, commit: table.source.commit },
+    android: { version: table.androidVersion, apiLevel: table.apiLevel, tag: table.source.tag, commit: table.source.commit },
     permissions,
   };
 }
