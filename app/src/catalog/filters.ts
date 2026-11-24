@@ -5,8 +5,10 @@
  *
  * Tokens come from the schema's `Facets`, plus one per region, category and
  * source, and two per anti-feature the indexes flag (entries with it, and
- * entries an index lists without it). Tokens inside a choice group (openness,
- * place, source) widen each other; everything else narrows. A fact that no
+ * entries an index lists without it). A repository owner or a license has a
+ * token too (`fact-tokens.ts`), made when a query names it and never offered
+ * in the filter panel. Tokens inside a choice group (openness, place, source)
+ * widen each other; everything else narrows. A fact that no
  * source states is never counted as "no": the tests below only ever match a
  * stated value. A list narrowed by such a fact says whose statement it is
  * and how many apps it leaves out for want of one (`antiFeatureNote`).
@@ -14,11 +16,12 @@
 
 import { americanSpelling } from "../../../schema/join.ts";
 import { fold } from "../lib/format.ts";
+import { LICENSE_PREFIX, OWNER_PREFIX, type FactGroup } from "./fact-tokens.ts";
 import { formerCategory } from "./former.ts";
 import { originName, type CategoryView, type Entry, type Model } from "./model.ts";
 import type { AntiFeature, DownloadOrigin, SourceId } from "./schema.ts";
 
-export type GroupId = "access" | "terms" | "get" | "health" | "anti" | "time" | "region" | "category" | "source";
+export type GroupId = "access" | "terms" | "get" | "health" | "anti" | "time" | "region" | "category" | "source" | "owner" | "license";
 
 export interface FilterDef {
   key: string;
@@ -44,6 +47,7 @@ export interface GroupDef {
   hint: string | null;
 }
 
+/** The filter panel's groups, in its order. The owner and license groups are not among them: their tokens are reached from an app. */
 export const GROUPS: GroupDef[] = [
   { id: "access", label: "Access", hint: null },
   { id: "terms", label: "Source and price", hint: null },
@@ -100,8 +104,10 @@ export interface Query {
 export const EMPTY_QUERY: Query = { text: "", filters: [], sort: null };
 
 export interface Vocabulary {
+  /** Every token the filter panel can offer, in its order. */
   defs: FilterDef[];
-  byKey: Map<string, FilterDef>;
+  /** Any token this catalog has: one of `defs`, or a repository owner's or a license's, made when first asked for. */
+  def(key: string): FilterDef | undefined;
   lenses: FilterDef[];
   /** Every sort this catalog supports: a download sort exists only for an origin that publishes figures here. */
   sorts: Map<SortId, SortDef>;
@@ -240,6 +246,29 @@ function downloadSort(model: Model, origin: DownloadOrigin): SortDef {
   };
 }
 
+/** The token of a repository owner or a license the catalog holds, in whatever letters the key is written; undefined for any other key. */
+function factDef(model: Model, written: string): FilterDef | undefined {
+  const key = written.toLowerCase();
+  const holds = (group: FactGroup) => (entry: Entry): boolean => group.members.has(entry);
+  if (key.startsWith(OWNER_PREFIX)) {
+    const owner = model.facts().owners.get(key);
+    return owner && { key, group: "owner", choice: null, label: `Repository owner: ${owner.label}`, short: owner.label, test: holds(owner), lens: false };
+  }
+  if (key.startsWith(LICENSE_PREFIX)) {
+    const license = model.facts().licenses.get(key);
+    return license && { key, group: "license", choice: null, label: `License: ${license.label}`, short: license.label, test: holds(license), lens: false };
+  }
+  return undefined;
+}
+
+/** A query's tokens in reading order: an owner, then licenses, which say what the list is of, then the rest in vocabulary order. */
+function inOrder(vocabulary: Vocabulary, keys: readonly string[]): string[] {
+  const family = (key: string): number => (key.startsWith(OWNER_PREFIX) ? 0 : 1);
+  const facts = keys.filter((key) => (key.startsWith(OWNER_PREFIX) || key.startsWith(LICENSE_PREFIX)) && vocabulary.def(key))
+    .sort((a, b) => family(a) - family(b) || a.localeCompare(b, "en"));
+  return [...new Set(facts), ...vocabulary.defs.filter((def) => keys.includes(def.key)).map((def) => def.key)];
+}
+
 /** Facts are offered only when at least one entry carries them, so no filter exists for a claim the data never makes. */
 export function buildVocabulary(model: Model): Vocabulary {
   const defs: FilterDef[] = [];
@@ -287,7 +316,16 @@ export function buildVocabulary(model: Model): Vocabulary {
     const category = key.startsWith("c:") ? formerCategory(model, key.slice(2)).category : undefined;
     return category && `c:${category}`;
   };
-  return { defs, byKey: new Map(defs.map((def) => [def.key, def])), lenses: defs.filter((def) => def.lens), sorts, former };
+  const byKey = new Map(defs.map((def) => [def.key, def]));
+  const made = new Map<string, FilterDef | undefined>();
+  const def = (key: string): FilterDef | undefined => {
+    const found = byKey.get(key);
+    if (found || made.has(key)) return found ?? made.get(key);
+    const fact = factDef(model, key);
+    made.set(key, fact);
+    return fact;
+  };
+  return { defs, def, lenses: defs.filter((def) => def.lens), sorts, former };
 }
 
 /** The definition of a sort this catalog supports; a sort it does not support reads as the name sort. */
@@ -306,13 +344,13 @@ function tokensOf(params: Readonly<Record<string, string>>): string[] {
 }
 
 /**
- * Reads a query from URL parameters. A category token of an earlier build
- * is read as its successor; tokens and sorts the catalog no longer has, and
+ * Reads a query from URL parameters. An owner or license token is read in
+ * any letters; a category token of an earlier build is read as its successor; tokens and sorts the catalog no longer has, and
  * tokens the page already implies, are dropped.
  */
 export function parseQuery(vocabulary: Vocabulary, params: Readonly<Record<string, string>>, implied: readonly string[] = []): Query {
-  const wanted = new Set(tokensOf(params).map((token) => (vocabulary.byKey.has(token) ? token : vocabulary.former(token) ?? token)));
-  const filters = vocabulary.defs.filter((def) => wanted.has(def.key) && !implied.includes(def.key)).map((def) => def.key);
+  const wanted = tokensOf(params).map((token) => vocabulary.def(token)?.key ?? vocabulary.former(token) ?? token);
+  const filters = inOrder(vocabulary, wanted.filter((key) => !implied.includes(key)));
   return { text: params.q ?? "", filters, sort: readSort(vocabulary, params.sort) };
 }
 
@@ -330,10 +368,9 @@ export function isEmptyQuery(query: Query): boolean {
  */
 export function toggleFilter(vocabulary: Vocabulary, query: Query, key: string): Query {
   const on = query.filters.includes(key);
-  const about = vocabulary.byKey.get(key)?.antiFeature?.id;
-  const kept = query.filters.filter((other) => other !== key && (on || about === undefined || vocabulary.byKey.get(other)?.antiFeature?.id !== about));
-  const keys = on ? kept : [...kept, key];
-  return { ...query, filters: vocabulary.defs.filter((def) => keys.includes(def.key)).map((def) => def.key) };
+  const about = vocabulary.def(key)?.antiFeature?.id;
+  const kept = query.filters.filter((other) => other !== key && (on || about === undefined || vocabulary.def(other)?.antiFeature?.id !== about));
+  return { ...query, filters: inOrder(vocabulary, on ? kept : [...kept, key]) };
 }
 
 /** A stable identity for "the same question", used to match pins. Sort is part of it. */
@@ -348,13 +385,13 @@ export function queryId(query: Query): string {
  * is left.
  */
 export function storedQueryName(vocabulary: Vocabulary, params: Readonly<Record<string, string>>, name: string): string | null {
-  if (tokensOf(params).every((token) => vocabulary.byKey.has(token))) return name;
+  if (tokensOf(params).every((token) => vocabulary.def(token))) return name;
   const query = parseQuery(vocabulary, params);
   return isEmptyQuery(query) ? null : describeQuery(vocabulary, query);
 }
 
 export function describeQuery(vocabulary: Vocabulary, query: Query): string {
-  const parts = query.filters.map((key) => vocabulary.byKey.get(key)?.short ?? key);
+  const parts = query.filters.map((key) => vocabulary.def(key)?.short ?? key);
   if (query.text.trim()) parts.push(`“${query.text.trim()}”`);
   return parts.join(" · ") || "Everything";
 }
@@ -363,7 +400,7 @@ function predicate(vocabulary: Vocabulary, keys: readonly string[], skipChoice: 
   const strict: FilterDef[] = [];
   const choices = new Map<string, FilterDef[]>();
   for (const key of keys) {
-    const def = vocabulary.byKey.get(key);
+    const def = vocabulary.def(key);
     if (!def) continue;
     if (def.choice === null) strict.push(def);
     else if (def.choice !== skipChoice) choices.set(def.choice, [...(choices.get(def.choice) ?? []), def]);
@@ -647,7 +684,7 @@ export function runQuery(vocabulary: Vocabulary, scope: readonly Entry[], query:
  */
 export function antiFeatureNote(model: Model, vocabulary: Vocabulary, base: readonly Entry[], query: Query, implied: readonly string[] = []): string | null {
   const keys = [...implied, ...query.filters];
-  const about = (key: string): boolean => vocabulary.byKey.get(key)?.group === "anti";
+  const about = (key: string): boolean => vocabulary.def(key)?.group === "anti";
   if (!keys.some(about)) return null;
   const stated = new Set(model.entries.flatMap((entry) => entry.app.index.map((index) => index.origin)));
   const names = (["fdroid", "izzy"] as const).filter((origin) => stated.has(origin)).map((origin) => originName(model, origin));
@@ -675,7 +712,7 @@ export function countOptions(vocabulary: Vocabulary, scope: readonly Entry[], qu
   const bases = new Map<string, Entry[]>();
   const counts = new Map<string, number>();
   for (const key of keys) {
-    const def = vocabulary.byKey.get(key);
+    const def = vocabulary.def(key);
     if (!def) continue;
     let base: readonly Entry[] = current;
     if (def.choice !== null) {
@@ -687,7 +724,7 @@ export function countOptions(vocabulary: Vocabulary, scope: readonly Entry[], qu
       base = cached;
     } else if (def.antiFeature) {
       const about = def.antiFeature.id;
-      const others = query.filters.filter((other) => vocabulary.byKey.get(other)?.antiFeature?.id !== about);
+      const others = query.filters.filter((other) => vocabulary.def(other)?.antiFeature?.id !== about);
       if (others.length !== query.filters.length) base = textual.filter(predicate(vocabulary, others));
     }
     let count = 0;

@@ -288,7 +288,7 @@ describe("catalog health", () => {
     const found = runQuery(vocabulary, model.entries, parseQuery(vocabulary, { f: "gone" }));
     expect(found.map((entry) => entry.app.id)).toEqual(["gone"]);
     const none = buildVocabulary(buildModel(catalog({ apps: [app({ id: "fine" })] }), NOW));
-    expect(none.byKey.has("gone")).toBe(false);
+    expect(none.def("gone") !== undefined).toBe(false);
   });
 });
 

@@ -252,7 +252,7 @@ export function AppList({
 
   const many = nounPlural;
   const countText = useMemo(() => countLine(scope, results, filtered, noun, many), [scope, results, filtered, noun, many]);
-  const activeDefs = query.filters.map((key) => vocabulary.byKey.get(key)).filter((def): def is FilterDef => def !== undefined);
+  const activeDefs = query.filters.map((key) => vocabulary.def(key)).filter((def): def is FilterDef => def !== undefined);
   const current = sortDef(vocabulary, sort);
   const note = useMemo(() => sortNote(model, results, sort), [model, results, sort]);
   const statedBy = useMemo(
@@ -532,7 +532,7 @@ function AntiFeatureOptions({ defs, vocabulary, query, counts, onChange }: {
   const [all, setAll] = useState(false);
   const general = defs.filter((def) => !def.antiFeature);
   const withDefs = defs.filter((def) => def.antiFeature?.polarity === "with");
-  const chosen = (id: string): boolean => query.filters.some((key) => vocabulary.byKey.get(key)?.antiFeature?.id === id);
+  const chosen = (id: string): boolean => query.filters.some((key) => vocabulary.def(key)?.antiFeature?.id === id);
   const shown = all ? withDefs : withDefs.filter((def, index) => index < COLLAPSED_ANTI_FEATURES || chosen(def.antiFeature?.id ?? ""));
   return (
     <>
@@ -546,7 +546,7 @@ function AntiFeatureOptions({ defs, vocabulary, query, counts, onChange }: {
           <ul class="af-list">
             {shown.map((def) => {
               const id = def.antiFeature?.id ?? "";
-              const without = vocabulary.byKey.get(`no:${id}`);
+              const without = vocabulary.def(`no:${id}`);
               return (
                 <li key={id} class="af">
                   <div role="group" aria-labelledby={`af-${id}`}>

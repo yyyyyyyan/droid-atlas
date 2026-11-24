@@ -42,7 +42,7 @@ export function Explore() {
     return dated.slice(0, NEWEST_SHOWN);
   }, [model]);
   const newCount = useMemo(() => model.entries.filter((entry) => entry.isNew).length, [model]);
-  const newLens = vocabulary.byKey.get("new");
+  const newLens = vocabulary.def("new");
 
   useEffect(() => {
     const set = { ids: newest.map((entry) => entry.app.id), reveal: () => undefined };

@@ -75,7 +75,7 @@ export function DataHealth() {
   const { model, build, saved, vocabulary } = useServices();
   const health = catalogHealth(model, build, Date.now());
   const { moved, missing } = saved.view.value;
-  const has = (key: string): string | null => (vocabulary.byKey.has(key) ? key : null);
+  const has = (key: string): string | null => (vocabulary.def(key) ? key : null);
   const checked = offlineStatus.value.lastCheck?.outcome.result === "current";
   const { fdroidIndexAt, izzyIndexAt, githubFetchedAt } = model.catalog.enrichment;
   const times: [string, number | null][] = [

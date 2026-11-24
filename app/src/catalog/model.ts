@@ -6,6 +6,7 @@
 
 import { categoryAnswers, sortListings } from "../../../schema/join.ts";
 import { compareText, fold, parseTime, withinDays } from "../lib/format.ts";
+import { indexFacts, type FactIndex } from "./fact-tokens.ts";
 import type { AntiFeature, App, Catalog, Category, DownloadOrigin, DownloadSource, DownloadStat, Listing, Origin, Region, SourceCategory, SourceId, SourceInfo } from "./schema.ts";
 
 export const RECENT_DAYS = 90;
@@ -82,6 +83,8 @@ export interface Model {
   downloadSources: DownloadSource[];
   /** Follows `Catalog.redirects` from a retired id to the app that replaced it. */
   resolve(id: string): Entry | null;
+  /** The entries by repository owner and by license (`fact-tokens.ts`), indexed the first time they are asked for. */
+  facts(): FactIndex;
 }
 
 function latestRelease(app: App): { at: number; origin: Origin } | null {
@@ -164,6 +167,7 @@ export function buildModel(catalog: Catalog, now: number): Model {
     });
   }
 
+  let facts: FactIndex | null = null;
   const resolve = (id: string): Entry | null => {
     let current: string | null = id;
     for (let hops = 0; current !== null && hops < 8; hops += 1) {
@@ -188,6 +192,10 @@ export function buildModel(catalog: Catalog, now: number): Model {
     antiFeatures: new Map(catalog.antiFeatures.map((feature) => [feature.id, feature])),
     downloadSources: catalog.enrichment.downloads,
     resolve,
+    facts: () => {
+      facts ??= indexFacts(byName);
+      return facts;
+    },
   };
 }
 

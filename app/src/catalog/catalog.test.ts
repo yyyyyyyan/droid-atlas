@@ -221,14 +221,14 @@ describe("Droid Atlas categories", () => {
     expect(model.categoryById.has("system-ui-gestures")).toBe(false);
     expect(model.regionById.get("system")?.categories.map((view) => view.category.id)).toEqual(["system-tools"]);
     const vocabulary = buildVocabulary(model);
-    expect(vocabulary.byKey.has("c:other-system-tools")).toBe(false);
+    expect(vocabulary.def("c:other-system-tools") !== undefined).toBe(false);
     expect(model.regions.reduce((sum, view) => sum + view.entries.length, 0)).toBe(APPS.length);
   });
 
   test("a remainder shows once it holds an app, after the region's other categories", () => {
     const model = modelOf([...APPS, remainder, { ...remainder, id: "leftover-2", name: "Leftover 2" }]);
     expect(model.regionById.get("system")?.categories.map((view) => [view.category.id, view.entries.length])).toEqual([["system-tools", 2], ["other-system-tools", 2]]);
-    expect(buildVocabulary(model).byKey.has("c:other-system-tools")).toBe(true);
+    expect(buildVocabulary(model).def("c:other-system-tools") !== undefined).toBe(true);
   });
 
   test("a filter naming a category the catalog lacks is dropped, and one naming a source's category is read as its successor", () => {
@@ -251,9 +251,9 @@ describe("filters", () => {
   const run = (params: Record<string, string>): string[] => names(runQuery(vocabulary, model.entries, parseQuery(vocabulary, params)));
 
   test("a fact is offered only when some entry carries it", () => {
-    expect(vocabulary.byKey.has("shizuku")).toBe(true);
-    expect(vocabulary.byKey.has("stale")).toBe(false);
-    expect(vocabulary.byKey.has("source-available")).toBe(false);
+    expect(vocabulary.def("shizuku") !== undefined).toBe(true);
+    expect(vocabulary.def("stale") !== undefined).toBe(false);
+    expect(vocabulary.def("source-available") !== undefined).toBe(false);
     expect(vocabulary.lenses.map((lens) => lens.key)).toEqual(["shizuku", "root", "no-internet", "fdroid", "apk", "clean", "new", "fresh"]);
   });
 
@@ -826,8 +826,8 @@ describe("anti-features one by one", () => {
       ["af:NonFreeNet", "Non-free network services"],
       ["af:Ads", "Ads"],
     ]);
-    expect(vocabulary.byKey.has("af:NSFW")).toBe(false);
-    expect(vocabulary.byKey.get("no:Ads")).toMatchObject({ short: "Without ads", group: "anti" });
+    expect(vocabulary.def("af:NSFW") !== undefined).toBe(false);
+    expect(vocabulary.def("no:Ads")).toMatchObject({ short: "Without ads", group: "anti" });
   });
 
   test("with it, without it, and none at all are three different questions; an entry no index lists answers none of them", () => {
