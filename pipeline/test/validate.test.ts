@@ -304,3 +304,37 @@ test("a format-1 previous build is read for its ids, redirects and counts; an un
   future.atlas.schema = 9;
   await assert.rejects(loadPrevious(writeBuild(future as unknown as CatalogParts)), /catalog format 9.*--bootstrap/);
 });
+
+test("schema gate: a reason for an anti-feature the facts do not flag, or an empty reason", () => {
+  const { catalog, context } = makeBuild();
+  const unflagged = clone(catalog);
+  const facts = unflagged.apps.find((a) => a.index.length)!.index[0]!;
+  facts.antiFeatureReasons = { Ads: "Shows ads." };
+  assert.ok(failedGates(unflagged, context).includes("schema"));
+  facts.antiFeatures = ["Ads"];
+  facts.antiFeatureReasons = { Ads: " " };
+  assert.ok(failedGates(unflagged, context).includes("schema"));
+});
+
+test("a bare previous catalog made before anti-feature reasons is read as stating none", async () => {
+  const { catalog } = makeBuild();
+  const older = clone(catalog);
+  for (const app of older.apps) for (const facts of app.index) delete (facts as Partial<typeof facts>).antiFeatureReasons;
+  const file = join(mkdtempSync(join(tmpdir(), "previous-")), "catalog.json");
+  writeFileSync(file, JSON.stringify(older));
+  const previous = await loadPrevious(file);
+  assert.deepEqual(previous.catalog.apps.map((a) => a.id), catalog.apps.map((a) => a.id));
+  assert.ok(previous.catalog.apps.some((a) => a.index.length > 0));
+  assert.ok(previous.catalog.apps.flatMap((a) => a.index).every((facts) => Object.keys(facts.antiFeatureReasons).length === 0));
+});
+
+test("a format-3 previous build made before anti-feature reasons is read as stating none", async () => {
+  const { catalog, parts } = makeBuild();
+  const older = clone(parts);
+  for (const index of older.indexes) {
+    for (const record of Object.values(index.apps)) delete (record.facts as Partial<typeof record.facts>).antiFeatureReasons;
+  }
+  const previous = await loadPrevious(writeBuild(older));
+  assert.deepEqual(previous.catalog.apps.map((a) => a.id), catalog.apps.map((a) => a.id));
+  assert.ok(previous.catalog.apps.flatMap((a) => a.index).every((facts) => Object.keys(facts.antiFeatureReasons).length === 0));
+});

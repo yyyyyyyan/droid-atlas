@@ -19,8 +19,12 @@ export interface FakePackage {
   author?: string;
   permissions?: string[];
   antiFeatures?: string[];
+  /** The index's reason for an anti-feature of the latest version, by key, as a localized map. */
+  reasons?: Record<string, unknown>;
   /** Anti-features on an older version only. */
   oldAntiFeatures?: string[];
+  /** The older version's reason for an anti-feature, by key, as a localized map. */
+  oldReasons?: Record<string, unknown>;
   icon?: { locale?: string; name: string; sha256: string } | null;
   versionName?: string;
 }
@@ -48,7 +52,7 @@ export function fakeIndexJson(packages: Record<string, FakePackage>, timestamp =
           added: 1_600_000_000_000,
           file: { name: `/${pkg}_1.apk`, size: 1000 },
           manifest: { versionName: "0.9", versionCode: 1, usesSdk: { minSdkVersion: 21, targetSdkVersion: 30 }, usesPermission: [] },
-          antiFeatures: Object.fromEntries((p.oldAntiFeatures ?? []).map((a) => [a, {}])),
+          antiFeatures: Object.fromEntries((p.oldAntiFeatures ?? []).map((a) => [a, p.oldReasons?.[a] ?? {}])),
         },
         new: {
           added: 1_690_000_000_000,
@@ -59,7 +63,7 @@ export function fakeIndexJson(packages: Record<string, FakePackage>, timestamp =
             usesSdk: { minSdkVersion: 24, targetSdkVersion: 35 },
             usesPermission: (p.permissions ?? []).map((name) => ({ name })),
           },
-          antiFeatures: Object.fromEntries((p.antiFeatures ?? []).map((a) => [a, {}])),
+          antiFeatures: Object.fromEntries((p.antiFeatures ?? []).map((a) => [a, p.reasons?.[a] ?? {}])),
         },
       },
     };

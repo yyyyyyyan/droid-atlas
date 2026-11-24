@@ -137,7 +137,12 @@ const listing = object({
   extraLinks: list(object({ name: string, url: httpUrl })),
 });
 const channel = object({ type: oneOf("fdroid", "izzy", "play"), pkg, variant: nullable(nonEmpty), listed: nullable(boolean) });
-const indexFacts = object({
+/** Reasons by anti-feature key: each key one the facts flag, each reason a non-empty string. */
+const antiFeatureReasons: Check = (v, p, e) => {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return fail(e, p, "expected an object");
+  for (const [key, reason] of Object.entries(v)) nonEmpty(reason, `${p}.${key}`, e);
+};
+const indexFactsShape = object({
   origin: oneOf("fdroid", "izzy"),
   pkg,
   version: nullable(string),
@@ -148,10 +153,19 @@ const indexFacts = object({
   sizeBytes: nullable(count),
   author: nullable(string),
   antiFeatures: list(nonEmpty),
+  antiFeatureReasons,
   permissionCount: count,
   declaresShizuku: boolean,
   declaresInternet: boolean,
 });
+const indexFacts: Check = (v, p, e) => {
+  indexFactsShape(v, p, e);
+  const facts = v as { antiFeatures?: unknown; antiFeatureReasons?: unknown } | null;
+  if (!facts || !Array.isArray(facts.antiFeatures) || !facts.antiFeatureReasons || typeof facts.antiFeatureReasons !== "object") return;
+  for (const key of Object.keys(facts.antiFeatureReasons)) {
+    if (!facts.antiFeatures.includes(key)) fail(e, `${p}.antiFeatureReasons.${key}`, "gives a reason for an anti-feature the facts do not flag");
+  }
+};
 const githubFacts = object({
   stars: count,
   pushedAt: string,

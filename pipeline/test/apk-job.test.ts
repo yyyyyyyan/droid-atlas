@@ -51,6 +51,7 @@ function app(spec: AppSpec): App {
     sizeBytes: null,
     author: null,
     antiFeatures: [],
+    antiFeatureReasons: {},
     permissionCount: 0,
     declaresShizuku: false,
     declaresInternet: true,

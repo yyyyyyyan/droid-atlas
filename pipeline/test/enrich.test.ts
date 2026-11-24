@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { batchQuery, fetchGithub, repoFromNode, type Fetch } from "../enrich/github.ts";
-import { SHIZUKU_PERMISSION } from "../enrich/index-v2.ts";
+import { ANTI_FEATURE_REASON_LIMIT, SHIZUKU_PERMISSION, SUMMARY_LIMIT } from "../enrich/index-v2.ts";
 import { fakeIndex } from "./fixtures.ts";
 
 test("an index record takes facts from the latest version and anti-features from all of them", () => {
@@ -28,6 +28,66 @@ test("an index record takes facts from the latest version and anti-features from
   assert.equal(record?.description, "Long & detailed");
   assert.equal(record?.facts.pkg, "org.example.one");
   assert.equal(index.timestamp, "2023-11-14T22:13:20.000Z");
+});
+
+test("an anti-feature keeps the index's English reason as plain text, bounded, and nothing when there is none", () => {
+  const index = fakeIndex("izzy", {
+    "org.example.flags": {
+      antiFeatures: ["Ads", "NonFreeNet", "Tracking", "NonFreeDep", "TetheredNet"],
+      reasons: {
+        Ads: { de: "Werbung.", "en-US": "Shows **banner** ads from <i>an example network</i>." },
+        NonFreeNet: { de: "Nur deutsch." },
+        Tracking: {},
+        NonFreeDep: { "en-US": `Uses ${"many ".repeat(200)}libraries.` },
+        TetheredNet: { "en-US": "   " },
+      },
+    },
+  });
+  const reasons = index.packages.get("org.example.flags")?.facts.antiFeatureReasons ?? {};
+  assert.deepEqual(Object.keys(reasons).sort(), ["Ads", "NonFreeDep"]);
+  assert.equal(reasons["Ads"], "Shows banner ads from an example network.");
+  assert.ok((reasons["NonFreeDep"] ?? "").length <= ANTI_FEATURE_REASON_LIMIT + 1);
+  assert.match(reasons["NonFreeDep"] ?? "", /…$/);
+});
+
+test("a reason is kept only for an anti-feature the latest version flags", () => {
+  const index = fakeIndex("fdroid", {
+    "org.example.old": {
+      antiFeatures: ["Ads"],
+      reasons: { Ads: { "en-US": "Has ads." } },
+      oldAntiFeatures: ["Ads", "Tracking"],
+      oldReasons: { Ads: { "en-US": "Had other ads." }, Tracking: { "en-US": "Used to track." } },
+    },
+    "org.example.bad": { antiFeatures: ["Ads"], reasons: { Ads: "not a map" } },
+  });
+  assert.deepEqual(index.packages.get("org.example.old")?.facts.antiFeatureReasons, { Ads: "Has ads." });
+  assert.deepEqual(index.packages.get("org.example.bad")?.facts.antiFeatureReasons, {});
+});
+
+test("English text falls back from en-US to en when en-US is not a string", () => {
+  const index = fakeIndex("izzy", {
+    "org.example.en": { antiFeatures: ["Ads"], reasons: { Ads: { "en-US": { text: "odd" }, en: "Shows ads." } } },
+  });
+  assert.deepEqual(index.packages.get("org.example.en")?.facts.antiFeatureReasons, { Ads: "Shows ads." });
+});
+
+test("a reason of invisible characters only is no reason", () => {
+  const index = fakeIndex("izzy", {
+    "org.example.blank": { antiFeatures: ["Ads", "Tracking"], reasons: { Ads: { "en-US": "⁠؜" }, Tracking: { "en-US": "​ ﻿" } } },
+  });
+  assert.deepEqual(index.packages.get("org.example.blank")?.facts.antiFeatureReasons, {});
+});
+
+test("a huge reason or summary is cut before it is read, and ends as a marked excerpt", () => {
+  const huge = `**Note** ${"word ".repeat(200_000)}`;
+  const started = performance.now();
+  const index = fakeIndex("fdroid", { "org.example.huge": { summary: huge, antiFeatures: ["Ads"], reasons: { Ads: { "en-US": huge } } } });
+  assert.ok(performance.now() - started < 2000, "a megabyte of text is read in well under two seconds");
+  const record = index.packages.get("org.example.huge");
+  for (const [text, limit] of [[record?.facts.antiFeatureReasons["Ads"] ?? "", ANTI_FEATURE_REASON_LIMIT], [record?.summary ?? "", SUMMARY_LIMIT]] as const) {
+    assert.ok(text.length <= limit + 1, `${text.length} characters`);
+    assert.match(text, /^Note word word .*…$/);
+  }
 });
 
 test("an index maps source-code URLs and repository keys to packages", () => {

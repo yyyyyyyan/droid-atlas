@@ -256,6 +256,11 @@ export interface IndexFacts {
   author: string | null;
   /** Keys of the anti-features the index flags on the latest version, sorted; each is defined in `Catalog.antiFeatures`. */
   antiFeatures: string[];
+  /**
+   * The index's own sentence on why it flags an anti-feature, by key, in
+   * English and plain text; a key the index gives no reason for has no entry.
+   */
+  antiFeatureReasons: Record<string, string>;
   permissionCount: number;
   declaresShizuku: boolean;
   declaresInternet: boolean;

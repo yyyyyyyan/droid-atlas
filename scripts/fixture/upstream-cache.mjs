@@ -251,7 +251,7 @@ const INDEX_ICONS = {
 };
 
 /** Hand-written index-v2 records in the shape `pipeline/enrich/index-v2.ts` reads. */
-function indexPackage({ name, summary, description, license, sourceCode, permissions = [], antiFeatures = [], icon = null }) {
+function indexPackage({ name, summary, description, license, sourceCode, permissions = [], antiFeatures = [], reasons = {}, icon = null }) {
   return {
     metadata: {
       name: { "en-US": name },
@@ -274,7 +274,7 @@ function indexPackage({ name, summary, description, license, sourceCode, permiss
           usesSdk: { minSdkVersion: 26, targetSdkVersion: 36 },
           usesPermission: permissions.map((permission) => ({ name: permission })),
         },
-        antiFeatures: Object.fromEntries(antiFeatures.map((feature) => [feature, {}])),
+        antiFeatures: Object.fromEntries(antiFeatures.map((feature) => [feature, reasons[feature] ?? {}])),
       },
     },
   };
@@ -305,6 +305,7 @@ const FDROID_PACKAGES = {
     sourceCode: "https://github.com/fixture-org/fixture-browser",
     permissions: ["android.permission.INTERNET"],
     antiFeatures: ["NonFreeNet"],
+    reasons: { NonFreeNet: { "en-US": "Synthetic reason for CI: loads invented pages from an invented service." } },
     icon: INDEX_ICONS.fdroid["org.fixture.browser"],
   }),
 };

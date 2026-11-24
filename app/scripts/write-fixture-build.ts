@@ -27,7 +27,7 @@ const ATTRIBUTION = "Synthetic fixture written by Droid Atlas; not catalog data.
 function index(origin: "fdroid" | "izzy", pkg: string, overrides: Partial<IndexFacts> = {}): IndexFacts {
   return {
     origin, pkg, version: "2.4.1", updatedAt: "2026-10-30T00:00:00Z", addedAt: "2023-02-01T00:00:00Z", minSdk: 26, targetSdk: 36,
-    sizeBytes: 4_200_000, author: "Fixture Authors", antiFeatures: [], permissionCount: 6, declaresShizuku: false, declaresInternet: true,
+    sizeBytes: 4_200_000, author: "Fixture Authors", antiFeatures: [], antiFeatureReasons: {}, permissionCount: 6, declaresShizuku: false, declaresInternet: true,
     ...overrides,
   };
 }

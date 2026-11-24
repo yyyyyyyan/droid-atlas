@@ -8,7 +8,7 @@
 import type { IndexFacts } from "../../schema/catalog.ts";
 import type { AntiFeatureDefinition } from "../../schema/parts.ts";
 import { parseRepo } from "../forge.ts";
-import { htmlToText, httpUrl, isoFromMillis, markdownToText, normalizeUrl } from "../lib/text.ts";
+import { htmlToText, httpUrl, isoFromMillis, markdownToText, normalizeUrl, truncate } from "../lib/text.ts";
 
 export type IndexOrigin = "fdroid" | "izzy";
 
@@ -60,11 +60,15 @@ function int(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
 }
 
-/** The English text of a localized field. */
-function localized(value: unknown): unknown {
+/** The English text of a localized field: the first of en-US, en and en-GB that is a string. */
+function localized(value: unknown): string | null {
   const map = object(value);
   if (!map) return null;
-  return map["en-US"] ?? map["en"] ?? map["en-GB"] ?? null;
+  for (const locale of ["en-US", "en", "en-GB"]) {
+    const text = map[locale];
+    if (typeof text === "string") return text;
+  }
+  return null;
 }
 
 /** A localized file: `en-US` when present, otherwise the first locale (icon policy rule 1). */
@@ -104,6 +108,40 @@ function latestVersion(versions: Json | null): Json | null {
   return best;
 }
 
+/** Longest anti-feature reason kept, in characters; a longer one is cut at a word and ends with an ellipsis. */
+export const ANTI_FEATURE_REASON_LIMIT = 600;
+
+/** Longest summary kept, in characters, cut the same way. */
+export const SUMMARY_LIMIT = 600;
+
+/** A letter, digit, mark, punctuation or symbol: text made only of spaces and invisible characters says nothing. */
+const VISIBLE_RE = /[\p{L}\p{M}\p{N}\p{P}\p{S}]/u;
+
+/**
+ * Short index text as plain text of at most `limit` characters. The raw text
+ * is cut to four times the limit before its Markdown is read, because reading
+ * takes time that grows faster than the length.
+ */
+function shortText(text: string | null, limit: number): string | null {
+  if (!text) return null;
+  const plain = truncate(markdownToText(text.slice(0, limit * 4)), limit);
+  return plain && VISIBLE_RE.test(plain) ? plain : null;
+}
+
+/**
+ * The index's own English sentence for each anti-feature the version flags,
+ * by key, as plain text. A key whose reason is missing, empty, invisible or
+ * not in English has no entry.
+ */
+function antiFeatureReasons(flags: Json | null, keys: readonly string[]): Record<string, string> {
+  const reasons: Record<string, string> = {};
+  for (const key of keys) {
+    const plain = shortText(string(localized(flags?.[key])), ANTI_FEATURE_REASON_LIMIT);
+    if (plain) reasons[key] = plain;
+  }
+  return reasons;
+}
+
 function record(origin: IndexOrigin, indexAt: string, repoBase: string, pkg: string, raw: Json): IndexRecord {
   const meta = object(raw["metadata"]) ?? {};
   const latest = latestVersion(object(raw["versions"]));
@@ -112,6 +150,8 @@ function record(origin: IndexOrigin, indexAt: string, repoBase: string, pkg: str
   const permissions = Array.isArray(manifest["usesPermission"])
     ? manifest["usesPermission"].map((p) => string(object(p)?.["name"])).filter((p): p is string => p !== null)
     : [];
+  const flags = object(latest?.["antiFeatures"]);
+  const antiFeatures = Object.keys(flags ?? {}).filter((key) => ANTI_FEATURE_KEY_RE.test(key)).sort();
   const icon = localizedFile(meta["icon"]);
   const iconName = string(icon?.["name"]);
   const iconSha = string(icon?.["sha256"]);
@@ -122,7 +162,7 @@ function record(origin: IndexOrigin, indexAt: string, repoBase: string, pkg: str
     indexAt,
     pkg,
     name: name ? markdownToText(name) : null,
-    summary: summary ? markdownToText(summary) : null,
+    summary: shortText(summary, SUMMARY_LIMIT),
     description: htmlToText(string(localized(meta["description"]))),
     license: string(meta["license"]),
     sourceCode: httpUrl(string(meta["sourceCode"])),
@@ -140,7 +180,8 @@ function record(origin: IndexOrigin, indexAt: string, repoBase: string, pkg: str
       targetSdk: int(usesSdk["targetSdkVersion"]),
       sizeBytes: int(object(latest?.["file"])?.["size"]),
       author: string(meta["authorName"]),
-      antiFeatures: Object.keys(object(latest?.["antiFeatures"]) ?? {}).filter((key) => ANTI_FEATURE_KEY_RE.test(key)).sort(),
+      antiFeatures,
+      antiFeatureReasons: antiFeatureReasons(flags, antiFeatures),
       permissionCount: new Set(permissions).size,
       declaresShizuku: permissions.includes(SHIZUKU_PERMISSION),
       declaresInternet: permissions.includes(INTERNET_PERMISSION),

@@ -10,7 +10,7 @@ const NOW = Date.parse("2026-11-11T00:00:00Z");
 function index(origin: "fdroid" | "izzy"): IndexFacts {
   return {
     origin, pkg: "org.example.app", version: "1", updatedAt: null, addedAt: null, minSdk: null, targetSdk: null,
-    sizeBytes: null, author: null, antiFeatures: [], permissionCount: 0, declaresShizuku: false, declaresInternet: true,
+    sizeBytes: null, author: null, antiFeatures: [], antiFeatureReasons: {}, permissionCount: 0, declaresShizuku: false, declaresInternet: true,
   };
 }
 

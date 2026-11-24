@@ -72,7 +72,7 @@ const APPS: App[] = [
     evidence: { noInternet: ["izzy"], openness: [{ value: "open-source", origin: "android-foss" }] },
     index: [{
       origin: "izzy", pkg: "org.elan.launcher", version: "2.0", updatedAt: "2026-01-01T00:00:00Z", addedAt: null, minSdk: 26, targetSdk: 35,
-      sizeBytes: 3_000_000, author: "Elan", antiFeatures: ["Tracking", "NonFreeNet"], permissionCount: 4, declaresShizuku: false, declaresInternet: false,
+      sizeBytes: 3_000_000, author: "Elan", antiFeatures: ["Tracking", "NonFreeNet"], antiFeatureReasons: {}, permissionCount: 4, declaresShizuku: false, declaresInternet: false,
     }],
     github: null,
     listings: [listing({ name: "Élan Launcher", order: 1, added: "2026-10-20T00:00:00Z" })],
@@ -635,7 +635,7 @@ describe("facts", () => {
   test("two indexes that agree are one line naming both, and two that differ are two lines of one row", () => {
     const index = (origin: "fdroid" | "izzy", sizeBytes: number) => ({
       origin, pkg: "org.example.app", version: "1.2", updatedAt: "2026-11-01T00:00:00Z", addedAt: null, minSdk: 26, targetSdk: null,
-      sizeBytes, author: null, antiFeatures: [], permissionCount: 3, declaresShizuku: false, declaresInternet: true,
+      sizeBytes, author: null, antiFeatures: [], antiFeatureReasons: {}, permissionCount: 3, declaresShizuku: false, declaresInternet: true,
     });
     const both = modelOf([app({ id: "both", index: [index("fdroid", 93 * 1_048_576), index("izzy", 22 * 1_048_576)], github: null })]);
     const facts = factsFor(both, both.byId.get("both") as Entry);
@@ -656,8 +656,8 @@ describe("statistics and the value a sorted row shows", () => {
   const subject = app({
     id: "counted", name: "Counted",
     index: [
-      { origin: "fdroid", pkg: "org.counted", version: "12.19.0", updatedAt: "2026-11-09T00:00:00Z", addedAt: null, minSdk: null, targetSdk: null, sizeBytes: null, author: null, antiFeatures: [], permissionCount: 1, declaresShizuku: false, declaresInternet: true },
-      { origin: "izzy", pkg: "org.counted", version: "12.20.0", updatedAt: "2026-11-10T00:00:00Z", addedAt: null, minSdk: null, targetSdk: null, sizeBytes: null, author: null, antiFeatures: [], permissionCount: 1, declaresShizuku: false, declaresInternet: true },
+      { origin: "fdroid", pkg: "org.counted", version: "12.19.0", updatedAt: "2026-11-09T00:00:00Z", addedAt: null, minSdk: null, targetSdk: null, sizeBytes: null, author: null, antiFeatures: [], antiFeatureReasons: {}, permissionCount: 1, declaresShizuku: false, declaresInternet: true },
+      { origin: "izzy", pkg: "org.counted", version: "12.20.0", updatedAt: "2026-11-10T00:00:00Z", addedAt: null, minSdk: null, targetSdk: null, sizeBytes: null, author: null, antiFeatures: [], antiFeatureReasons: {}, permissionCount: 1, declaresShizuku: false, declaresInternet: true },
     ],
     github: { stars: 12_345, pushedAt: "2026-11-08T00:00:00Z", archived: false, movedTo: null, forkOf: null, release: { tag: "v12.20.0", publishedAt: "2026-11-10T12:00:00Z", hasApk: true } },
     downloads,
@@ -764,7 +764,7 @@ describe("statistics and the value a sorted row shows", () => {
 describe("anti-features one by one", () => {
   const index = (origin: "fdroid" | "izzy", antiFeatures: string[]) => ({
     origin, pkg: "org.example.app", version: "1", updatedAt: null, addedAt: null, minSdk: null, targetSdk: null,
-    sizeBytes: null, author: null, antiFeatures, permissionCount: 0, declaresShizuku: false, declaresInternet: true,
+    sizeBytes: null, author: null, antiFeatures, antiFeatureReasons: {}, permissionCount: 0, declaresShizuku: false, declaresInternet: true,
   });
   const model = buildModel(
     catalog({

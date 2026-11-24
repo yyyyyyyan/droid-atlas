@@ -45,7 +45,7 @@ const SUBJECT = catalog({
     license: { value: "MIT", origin: "fdroid" },
     index: [{
       origin: "fdroid", pkg: "org.example.app", version: "1.0", updatedAt: null, addedAt: null, minSdk: null, targetSdk: null,
-      sizeBytes: null, author: null, antiFeatures: [], permissionCount: 1, declaresShizuku: false, declaresInternet: true,
+      sizeBytes: null, author: null, antiFeatures: [], antiFeatureReasons: {}, permissionCount: 1, declaresShizuku: false, declaresInternet: true,
     }],
   })],
 });

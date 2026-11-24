@@ -353,9 +353,27 @@ export const READABLE_FORMATS: readonly number[] = [1, 2];
  */
 export function upgradeParts(parts: CatalogParts): CatalogParts {
   const format = parts.atlas.schema as number;
-  if (format === CATALOG_SCHEMA_VERSION) return withRegions(parts);
+  if (format === CATALOG_SCHEMA_VERSION) return withReasons(withRegions(parts));
   const two = format === 1 ? formatOneToTwo(parts) : parts;
-  return formatTwoToThree(two);
+  return withReasons(formatTwoToThree(two));
+}
+
+/** A build made before index facts carried anti-feature reasons states none. */
+function withReasons(parts: CatalogParts): CatalogParts {
+  if (parts.indexes.every((index) => Object.values(index.apps).every((record) => record.facts.antiFeatureReasons !== undefined))) return parts;
+  return {
+    ...parts,
+    indexes: parts.indexes.map((index) => ({
+      ...index,
+      apps: Object.fromEntries(Object.entries(index.apps).map(([id, record]) => [id, { ...record, facts: { ...record.facts, antiFeatureReasons: record.facts.antiFeatureReasons ?? {} } }])),
+    })),
+  };
+}
+
+/** The same for one app of a bare previous catalog. */
+function appWithReasons(app: App): App {
+  if (!Array.isArray(app.index) || app.index.every((facts) => facts.antiFeatureReasons !== undefined)) return app;
+  return { ...app, index: app.index.map((facts) => ({ ...facts, antiFeatureReasons: facts.antiFeatureReasons ?? {} })) };
 }
 
 /** A format-3 build made before source categories carried their region gets it from today's table. */
@@ -447,6 +465,7 @@ export async function loadPrevious(location: string): Promise<PreviousBuild> {
     }
   }
   if (catalog.schema !== CATALOG_SCHEMA_VERSION || !Array.isArray(catalog.apps)) throw new Error(`${from}: not a schema ${CATALOG_SCHEMA_VERSION} catalog; run with --bootstrap instead`);
+  catalog = { ...catalog, apps: catalog.apps.map(appWithReasons) };
   const errors = checkCatalogShape(catalog);
   if (errors.length) throw new Error(`${from}: previous catalog does not match the schema: ${errors.slice(0, 5).join("; ")}`);
   return { catalog: catalog as Catalog, from, icons, dataDir };
