@@ -435,3 +435,26 @@ test("rule 7 counts only trusted store links: a rejected link to another app's l
   assert.deepEqual(appOf(result, "Flow").packages, ["org.ex.flow"]);
   assert.deepEqual(appOf(result, "Tube").packages, ["org.ex.tube"]);
 });
+
+test("the repository's source: the catalogs that link it, by source-code link or main link, else the index it was read from", () => {
+  const result = run({
+    entries: [
+      entry({ name: "Both", url: "https://github.com/ex/both" }),
+      entry({ source: "awesome-shizuku", category: "awesome-shizuku/audio", name: "Both", url: "https://github.com/ex/both" }),
+      entry({ name: "Coded", url: "https://coded.example", sourceCode: "https://codeberg.org/ex/coded" }),
+      entry({ name: "Indexed", url: "https://indexed.example", channels: [fdroidLink("org.ex.indexed")] }),
+      entry({ name: "Izzy", url: "https://izzy.example", channels: [{ type: "izzy" as const, pkg: "org.ex.izzy", variant: null }] }),
+      entry({ name: "Nowhere", url: "https://nowhere.example" }),
+    ],
+    fdroid: { "org.ex.indexed": { sourceCode: "https://github.com/ex/indexed" } },
+    izzy: { "org.ex.izzy": { sourceCode: "https://gitlab.com/ex/izzy" } },
+  });
+  assert.deepEqual(appOf(result, "Both").evidence.repository, ["android-foss", "awesome-shizuku"]);
+  assert.deepEqual(appOf(result, "Coded").evidence.repository, ["android-foss"]);
+  assert.equal(appOf(result, "Coded").repo?.slug, "ex/coded");
+  assert.deepEqual(appOf(result, "Indexed").evidence.repository, ["fdroid"]);
+  assert.equal(appOf(result, "Indexed").repo?.slug, "ex/indexed");
+  assert.deepEqual(appOf(result, "Izzy").evidence.repository, ["izzy"]);
+  assert.deepEqual(appOf(result, "Nowhere").evidence.repository, []);
+  assert.equal(appOf(result, "Nowhere").repo, null);
+});

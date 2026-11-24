@@ -79,7 +79,8 @@ export function pricingEvidence(input: FacetInput): Sourced<Pricing>[] {
   return statements(found, ["free", "iap", "trial", "paid"]);
 }
 
-export function computeEvidence(input: FacetInput): Evidence {
+/** The evidence the facets rest on. Who gave the repository is recorded where the repository is chosen (`identity.ts`). */
+export function computeEvidence(input: FacetInput): Omit<Evidence, "repository"> {
   const listed = (predicate: (listing: Listing) => boolean): Origin[] => input.listings.filter(predicate).map((l) => l.source);
   return {
     shizuku: origins([
@@ -94,7 +95,7 @@ export function computeEvidence(input: FacetInput): Evidence {
   };
 }
 
-export function computeFacets(input: FacetInput, evidence: Evidence): Facets {
+export function computeFacets(input: FacetInput, evidence: Omit<Evidence, "repository">): Facets {
   const openness = evidence.openness.reduce<Openness | null>(
     (most, s) => (most === null || OPENNESS_RANK.indexOf(s.value) > OPENNESS_RANK.indexOf(most) ? s.value : most),
     null,

@@ -114,7 +114,7 @@ function app(spec: AppSpec): App {
       noAntiFeatures: null,
       archived: null,
     },
-    evidence: { shizuku: [], root: [], archived: [], noInternet: [], openness: [], pricing: [] },
+    evidence: { shizuku: [], root: [], archived: [], noInternet: [], openness: [], pricing: [], repository: [] },
     search: spec.id,
   };
 }

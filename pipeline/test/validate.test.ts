@@ -338,3 +338,29 @@ test("a format-3 previous build made before anti-feature reasons is read as stat
   assert.deepEqual(previous.catalog.apps.map((a) => a.id), catalog.apps.map((a) => a.id));
   assert.ok(previous.catalog.apps.flatMap((a) => a.index).every((facts) => Object.keys(facts.antiFeatureReasons).length === 0));
 });
+
+test("a previous build or bare catalog made before the repository's source was recorded is read as naming none", async () => {
+  const { catalog, parts } = makeBuild();
+  const olderParts = clone(parts);
+  for (const app of olderParts.atlas.apps) delete (app.evidence as Partial<typeof app.evidence>).repository;
+  const fromParts = await loadPrevious(writeBuild(olderParts));
+  assert.deepEqual(fromParts.catalog.apps.map((a) => a.id), catalog.apps.map((a) => a.id));
+  assert.ok(fromParts.catalog.apps.every((a) => a.evidence.repository.length === 0));
+
+  const olderCatalog = clone(catalog);
+  for (const app of olderCatalog.apps) delete (app.evidence as Partial<typeof app.evidence>).repository;
+  const file = join(mkdtempSync(join(tmpdir(), "previous-")), "catalog.json");
+  writeFileSync(file, JSON.stringify(olderCatalog));
+  const fromCatalog = await loadPrevious(file);
+  assert.ok(fromCatalog.catalog.apps.every((a) => a.evidence.repository.length === 0));
+});
+
+test("schema gate: the repository's source is a list of origins", () => {
+  const { catalog, context } = makeBuild();
+  const unknown = clone(catalog);
+  (unknown.apps[0]!.evidence as { repository: unknown }).repository = ["somewhere"];
+  assert.ok(failedGates(unknown, context).includes("schema"));
+  const missing = clone(catalog);
+  delete (missing.apps[0]!.evidence as { repository?: unknown }).repository;
+  assert.ok(failedGates(missing, context).includes("schema"));
+});

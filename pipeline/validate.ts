@@ -353,9 +353,21 @@ export const READABLE_FORMATS: readonly number[] = [1, 2];
  */
 export function upgradeParts(parts: CatalogParts): CatalogParts {
   const format = parts.atlas.schema as number;
-  if (format === CATALOG_SCHEMA_VERSION) return withReasons(withRegions(parts));
+  if (format === CATALOG_SCHEMA_VERSION) return withRepositorySource(withReasons(withRegions(parts)));
   const two = format === 1 ? formatOneToTwo(parts) : parts;
-  return withReasons(formatTwoToThree(two));
+  return withRepositorySource(withReasons(formatTwoToThree(two)));
+}
+
+/** A build made before the repository's source was recorded names none. */
+function withRepositorySource(parts: CatalogParts): CatalogParts {
+  if (parts.atlas.apps.every((app) => app.evidence.repository !== undefined)) return parts;
+  return { ...parts, atlas: { ...parts.atlas, apps: parts.atlas.apps.map((app) => ({ ...app, evidence: { ...app.evidence, repository: app.evidence.repository ?? [] } })) } };
+}
+
+/** The same for one app of a bare previous catalog. */
+function appWithRepositorySource(app: App): App {
+  if (typeof app.evidence !== "object" || app.evidence === null || app.evidence.repository !== undefined) return app;
+  return { ...app, evidence: { ...app.evidence, repository: [] } };
 }
 
 /** A build made before index facts carried anti-feature reasons states none. */
@@ -465,7 +477,7 @@ export async function loadPrevious(location: string): Promise<PreviousBuild> {
     }
   }
   if (catalog.schema !== CATALOG_SCHEMA_VERSION || !Array.isArray(catalog.apps)) throw new Error(`${from}: not a schema ${CATALOG_SCHEMA_VERSION} catalog; run with --bootstrap instead`);
-  catalog = { ...catalog, apps: catalog.apps.map(appWithReasons) };
+  catalog = { ...catalog, apps: catalog.apps.map((app) => appWithRepositorySource(appWithReasons(app))) };
   const errors = checkCatalogShape(catalog);
   if (errors.length) throw new Error(`${from}: previous catalog does not match the schema: ${errors.slice(0, 5).join("; ")}`);
   return { catalog: catalog as Catalog, from, icons, dataDir };

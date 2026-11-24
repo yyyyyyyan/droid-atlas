@@ -204,6 +204,7 @@ const evidence = object({
   noInternet: list(origin),
   openness: list(sourced(oneOf(...OPENNESS))),
   pricing: list(sourced(oneOf(...PRICING))),
+  repository: list(origin),
 });
 const app = object({
   id,

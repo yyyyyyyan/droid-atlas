@@ -304,6 +304,13 @@ export interface Evidence {
   noInternet: Origin[];
   openness: Sourced<Openness>[];
   pricing: Sourced<Pricing>[];
+  /**
+   * Who gave `App.repo`: the catalogs whose entry links it (its source-code
+   * link, else its main link), else the index whose source-code field it was
+   * read from. Empty when the app has no repository. A catalog built before
+   * this was recorded has none.
+   */
+  repository: Origin[];
 }
 
 export interface App {

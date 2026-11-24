@@ -17,7 +17,7 @@
  * reported for review.
  */
 import { existsSync, readFileSync } from "node:fs";
-import type { App, Catalog, Channel, GithubFacts, Listing, Repo, SourceCategory, Sourced, SourceId } from "../schema/catalog.ts";
+import type { App, Catalog, Channel, Evidence, GithubFacts, Listing, Origin, Repo, SourceCategory, Sourced, SourceId } from "../schema/catalog.ts";
 import {
   categoryAnswers,
   deriveDownloads,
@@ -694,12 +694,16 @@ function buildApp(members: Resolved[], input: IdentityInput, categoryOrder: Map<
   let repoRef = withRepo?.canonical ?? null;
   let githubLinked = withRepo?.linkedRepo ?? null;
   let githubRepo = withRepo?.github ?? null;
+  const chosen = repoRef;
+  let repoOrigins: Origin[] = chosen ? [...new Set(sorted.filter((r) => r.canonical?.key === chosen.key).map((r) => r.entry.source))] : [];
   if (!repoRef && !isResource) {
     const fromIndex = f?.sourceCode ?? z?.sourceCode ?? null;
+    repoOrigins = f?.sourceCode ? ["fdroid"] : z?.sourceCode ? ["izzy"] : [];
     githubLinked = fromIndex ? parseRepo(fromIndex, true) : null;
     const result = githubLinked?.host === "github" && githubLinked.slug ? input.github.get(githubLinked.slug) : undefined;
     githubRepo = result && !("missing" in result) ? result : null;
     repoRef = canonicalRepo(githubLinked, githubRepo);
+    if (!repoRef) repoOrigins = [];
   }
   const github = githubFacts(githubRepo, githubLinked);
 
@@ -779,7 +783,7 @@ function buildApp(members: Resolved[], input: IdentityInput, categoryOrder: Map<
       (l): l is Sourced<string> => l !== null,
     ),
   };
-  const evidence = computeEvidence(facetInput);
+  const evidence: Evidence = { ...computeEvidence(facetInput), repository: repoOrigins };
 
   const app: App = {
     id: "",
