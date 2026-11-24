@@ -348,9 +348,9 @@ html.has-keyboard .sheet-meta { display: none; }
 /* A link in a row keeps the row's line and gets its 44 px of height from padding that the margin gives back. */
 .listing-facts a { display: inline-block; margin-block: -13px; padding-block: 13px; color: var(--p-text); text-underline-offset: 2px; }
 .listing-aside { color: var(--text-2); }
-/* A fact that leads to the list of entries sharing it, with the size of that list outside the underline. Its box reaches 3 px around the words: stacked lines are 6 px apart, so two links meet without overlapping, and none reaches into the next row. */
-.facts .fact-link, .listing-facts .fact-link { display: inline-block; margin: -3px -4px; padding: 3px 4px; color: var(--p-text); text-underline-offset: 2px; }
-.fact-link:focus-visible { outline-offset: -1px; border-radius: 6px; }
+/* A fact that leads to the list of entries sharing it, with the size of that list outside the underline. Its box reaches 3 px above and below the words and no further: stacked lines are 6 px apart, so two links meet without overlapping, none reaches into the next row, and links side by side keep the space between them. */
+.facts .fact-link, .listing-facts .fact-link { display: inline-block; margin-block: -3px; padding-block: 3px; color: var(--p-text); text-underline-offset: 2px; }
+.fact-link:focus-visible { outline-offset: 1px; border-radius: 4px; }
 .fact-n { display: inline-block; margin-left: 6px; font-size: 12.5px; font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .fact-others { margin-top: 3px; }
 .fact-others a { color: var(--p-text); text-underline-offset: 2px; }
