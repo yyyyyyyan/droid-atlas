@@ -15,9 +15,10 @@
  */
 
 import { androidVersion, compactNumber, fileSize, formatDate, formatDateRange, parseTime, shortDate, timeAgo } from "../lib/format.ts";
+import { licenseParts, linksRepository, ownerLabel, repositoryOwner, type LicensePart } from "./fact-tokens.ts";
 import { antiFeatureMeaning, antiFeatureName, downloadSortOrigin, type SortId } from "./filters.ts";
 import { originName, type Entry, type Model } from "./model.ts";
-import { type DownloadOrigin, type DownloadStat, type IndexFacts, type Openness, type Origin, type Pricing } from "./schema.ts";
+import { type DownloadOrigin, type DownloadStat, type IndexFacts, type Openness, type Origin, type Pricing, type Sourced } from "./schema.ts";
 
 export type Tone = "neutral" | "good" | "caution" | "alert" | "place";
 
@@ -555,6 +556,8 @@ export interface FactLine {
   quote: string | null;
   /** Display names of everyone who states this. Empty only for "Unknown", which nobody states. */
   sources: string[];
+  /** The value cut into the stretches that lead to a list of apps (a filter token) and the words between, when some of it does. */
+  parts?: LicensePart[];
 }
 
 /**
@@ -609,6 +612,50 @@ function indexFacts(model: Model, indexes: readonly IndexFacts[], facts: Fact[])
   });
 }
 
+/**
+ * Who states an app's repository, and so its owner: GitHub, when it answered
+ * for the repository (its address follows the renames GitHub reports); else
+ * the catalogs whose link is the repository; else the index whose source code
+ * link the build read it from, which is the first that carries the app.
+ */
+function repositoryOrigins(entry: Entry): Origin[] {
+  const { app } = entry;
+  if (!app.repo) return [];
+  if (app.repo.host === "github" && app.github) return ["github"];
+  const repo = app.repo;
+  const linking = entry.listings.filter((listing) => linksRepository(listing.url, repo)).map((listing) => listing.source);
+  if (linking.length > 0) return linking;
+  return app.index.slice(0, 1).map((index) => index.origin);
+}
+
+/** Gives the line last added under `key` the stretches of its value that lead to a list. */
+function linkLast(facts: Fact[], key: string, parts: LicensePart[]): void {
+  const line = facts.find((fact) => fact.key === key)?.lines.at(-1);
+  if (line && parts.some((part) => part.key)) line.parts = parts;
+}
+
+/**
+ * One line per license the sources state, each license in it leading to the
+ * apps under it. A source that writes a license another already stated in
+ * other letters ("GPL-3.0" beside "GPL-3.0-only") adds no line; a source that
+ * states another license does, so a disagreement shows as one.
+ */
+function licenseFacts(model: Model, statements: readonly Sourced<string>[], facts: Fact[]): void {
+  const shown = new Map<string, string>();
+  for (const statement of statements) {
+    const parts = licenseParts(statement.value);
+    const keys = parts.flatMap((part) => (part.key ? [part.key] : []));
+    const same = keys.length > 0 ? keys.join(" ") : statement.value.trim().toLowerCase();
+    const first = shown.get(same);
+    if (first !== undefined && first !== statement.value) continue;
+    state(facts, "license", "License", "neutral", statement.value, names(model, [statement.origin]));
+    if (first === undefined) {
+      shown.set(same, statement.value);
+      linkLast(facts, "license", parts);
+    }
+  }
+}
+
 /** The sheet's details. Every line that states something names who states it. Versions, dates and counts are in `statisticsFor`. */
 export function factsFor(model: Model, entry: Entry): Fact[] {
   const { app } = entry;
@@ -622,7 +669,7 @@ export function factsFor(model: Model, entry: Entry): Fact[] {
     const origins = app.evidence.pricing.filter((statement) => statement.value === value).map((statement) => statement.origin);
     if (origins.length) state(facts, "price", "Price", value === "free" ? "neutral" : "caution", PRICING_LABEL[value], names(model, origins));
   }
-  if (app.license) state(facts, "license", "License", "neutral", app.license.value, names(model, [app.license.origin]));
+  licenseFacts(model, app.licenses, facts);
 
   const declared = app.evidence.shizuku.filter((origin) => origin === "fdroid" || origin === "izzy");
   const listed = app.evidence.shizuku.filter((origin) => origin !== "fdroid" && origin !== "izzy");
@@ -637,6 +684,13 @@ export function factsFor(model: Model, entry: Entry): Fact[] {
 
   if (app.github?.movedTo) state(facts, "moved", "Repository", "neutral", `Moved to ${app.github.movedTo}`, ["GitHub"]);
   if (app.github?.forkOf) state(facts, "fork", "Fork", "neutral", `Forked from ${app.github.forkOf}`, ["GitHub"]);
+  const owner = repositoryOwner(app);
+  const others = model.facts().ownerOf(entry);
+  if (owner && others && others.entries.length > 1) {
+    const label = ownerLabel(owner);
+    state(facts, "owner", "Repository owner", "neutral", label, names(model, repositoryOrigins(entry)));
+    linkLast(facts, "owner", [{ text: label, key: others.key }]);
+  }
   if (app.evidence.archived.length) state(facts, "archived", "Status", "caution", "Archived", names(model, app.evidence.archived));
   if (app.repoMissing) state(facts, "repo-missing", "Repository", "caution", "No longer exists", ["GitHub"]);
   for (const channel of app.channels) {

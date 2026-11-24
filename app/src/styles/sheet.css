@@ -348,6 +348,10 @@ html.has-keyboard .sheet-meta { display: none; }
 /* A link in a row keeps the row's line and gets its 44 px of height from padding that the margin gives back. */
 .listing-facts a { display: inline-block; margin-block: -13px; padding-block: 13px; color: var(--p-text); text-underline-offset: 2px; }
 .listing-aside { color: var(--text-2); }
+/* A fact that leads to the list of apps sharing it, with the size of that list; the number sits outside the underline. */
+.fact-link { display: inline-block; margin-block: -13px; padding-block: 13px; color: var(--p-text); text-underline-offset: 2px; }
+.fact-n { display: inline-block; margin-left: 6px; font-size: 12.5px; font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.fact-others a { color: var(--p-text); text-underline-offset: 2px; }
 
 .acts { display: grid; gap: 8px; }
 .act-item {

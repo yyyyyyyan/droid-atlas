@@ -90,7 +90,7 @@ const APPS: App[] = [
   }),
   app({
     id: "unknown", name: "Mystery", search: "mystery", category: "system-tools", region: "system",
-    github: null,
+    github: null, repo: null,
     listings: [listing({ source: "awesome-shizuku", category: "awesome-shizuku/system", name: "Mystery", order: 1 })],
   }),
 ];

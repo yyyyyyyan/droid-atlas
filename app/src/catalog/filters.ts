@@ -16,7 +16,7 @@
 
 import { americanSpelling } from "../../../schema/join.ts";
 import { fold } from "../lib/format.ts";
-import { LICENSE_PREFIX, OWNER_PREFIX, type FactGroup } from "./fact-tokens.ts";
+import { LICENSE_PREFIX, OWNER_PREFIX } from "./fact-tokens.ts";
 import { formerCategory } from "./former.ts";
 import { originName, type CategoryView, type Entry, type Model } from "./model.ts";
 import type { AntiFeature, DownloadOrigin, SourceId } from "./schema.ts";
@@ -249,14 +249,14 @@ function downloadSort(model: Model, origin: DownloadOrigin): SortDef {
 /** The token of a repository owner or a license the catalog holds, in whatever letters the key is written; undefined for any other key. */
 function factDef(model: Model, written: string): FilterDef | undefined {
   const key = written.toLowerCase();
-  const holds = (group: FactGroup) => (entry: Entry): boolean => group.members.has(entry);
+  const test = (entry: Entry): boolean => model.facts().holds(entry, key);
   if (key.startsWith(OWNER_PREFIX)) {
     const owner = model.facts().owners.get(key);
-    return owner && { key, group: "owner", choice: null, label: `Repository owner: ${owner.label}`, short: owner.label, test: holds(owner), lens: false };
+    return owner && { key, group: "owner", choice: null, label: `Repository owner: ${owner.label}`, short: owner.label, test, lens: false };
   }
   if (key.startsWith(LICENSE_PREFIX)) {
     const license = model.facts().licenses.get(key);
-    return license && { key, group: "license", choice: null, label: `License: ${license.label}`, short: license.label, test: holds(license), lens: false };
+    return license && { key, group: "license", choice: null, label: `License: ${license.label}`, short: license.label, test, lens: false };
   }
   return undefined;
 }

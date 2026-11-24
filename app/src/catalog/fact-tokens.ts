@@ -55,6 +55,20 @@ export function repositoryOwner(app: Pick<App, "repo">): Owner | null {
   return { key: `${OWNER_PREFIX}${repo.host}/${name.toLowerCase()}`, host: repo.host, name };
 }
 
+const FORGE_HOSTS: Record<Forge, string> = { github: "github.com", gitlab: "gitlab.com", codeberg: "codeberg.org", sourcehut: "git.sr.ht" };
+
+/** Whether a link leads into the repository: on its forge, at its slug or below it, in any letters. */
+export function linksRepository(url: string, repo: Pick<Repo, "host" | "slug">): boolean {
+  if (!repo.slug || repo.host === "other" || !Object.hasOwn(FORGE_HOSTS, repo.host)) return false;
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.split("/").filter(Boolean).slice(0, 2).join("/");
+    return parsed.hostname.replace(/^www\./, "").toLowerCase() === FORGE_HOSTS[repo.host] && path.toLowerCase() === repo.slug.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
 /** "fossifyorg on GitHub": who owns a repository, and where. */
 export function ownerLabel(owner: Pick<Owner, "host" | "name">): string {
   return `${owner.name} on ${FORGE_NAMES[owner.host]}`;
@@ -103,7 +117,6 @@ export interface FactGroup {
   label: string;
   /** By name. */
   entries: Entry[];
-  members: Set<Entry>;
 }
 
 export interface FactIndex {
@@ -111,19 +124,34 @@ export interface FactIndex {
   licenses: Map<string, FactGroup>;
   /** The owner group an entry belongs to, when its repository is on a named forge. */
   ownerOf(entry: Entry): FactGroup | null;
+  /** Whether an entry is among those an owner or license token holds. */
+  holds(entry: Entry, key: string): boolean;
 }
 
-/** The most frequent of a token's spellings; the first seen among equals. */
-function commonest(spellings: Map<string, number>): string {
-  let best = "";
-  let most = 0;
-  for (const [spelling, count] of spellings) {
-    if (count > most) {
-      best = spelling;
-      most = count;
-    }
-  }
+/** The most frequent spelling; the first seen among equals. */
+function commonest(spellings: readonly string[]): string {
+  const first = spellings[0] ?? "";
+  if (spellings.every((spelling) => spelling === first)) return first;
+  const counts = new Map<string, number>();
+  for (const spelling of spellings) counts.set(spelling, (counts.get(spelling) ?? 0) + 1);
+  let best = first;
+  for (const [spelling, count] of counts) if (count > (counts.get(best) ?? 0)) best = spelling;
   return best;
+}
+
+interface Draft {
+  entries: Entry[];
+  spellings: string[];
+}
+
+function addTo(groups: Map<string, Draft>, key: string, entry: Entry, spelling: string): void {
+  const group = groups.get(key);
+  if (!group) {
+    groups.set(key, { entries: [entry], spellings: [spelling] });
+    return;
+  }
+  if (group.entries.at(-1) !== entry) group.entries.push(entry);
+  group.spellings.push(spelling);
 }
 
 /**
@@ -134,37 +162,46 @@ function commonest(spellings: Map<string, number>): string {
  * @param entries the catalog, by name
  */
 export function indexFacts(entries: readonly Entry[]): FactIndex {
-  const groups = (): Map<string, { entries: Entry[]; spellings: Map<string, number> }> => new Map();
-  const owners = groups();
-  const licenses = groups();
-  const ownerKey = new Map<Entry, string>();
-  const add = (into: ReturnType<typeof groups>, key: string, entry: Entry, spelling: string): void => {
-    let group = into.get(key);
-    if (!group) {
-      group = { entries: [], spellings: new Map() };
-      into.set(key, group);
-    }
-    if (group.entries.at(-1) !== entry) group.entries.push(entry);
-    group.spellings.set(spelling, (group.spellings.get(spelling) ?? 0) + 1);
-  };
+  const owners = new Map<string, Draft>();
+  const licenses = new Map<string, Draft>();
+  const hosts = new Map<string, Owner["host"]>();
+  const keysOf = new Map<Entry, string[]>();
+  /* Sources spell few licenses many times over, so each spelling is read once. */
+  const read = new Map<string, { key: string; term: string }[]>();
   for (const entry of entries) {
+    const keys: string[] = [];
     const owner = repositoryOwner(entry.app);
     if (owner) {
-      add(owners, owner.key, entry, ownerLabel(owner));
-      ownerKey.set(entry, owner.key);
+      addTo(owners, owner.key, entry, owner.name);
+      hosts.set(owner.key, owner.host);
+      keys.push(owner.key);
     }
     for (const statement of entry.app.licenses) {
-      for (const part of licenseParts(statement.value)) {
-        if (part.key) add(licenses, part.key, entry, bareTerm(part.text));
+      let terms = read.get(statement.value);
+      if (!terms) {
+        terms = licenseParts(statement.value).flatMap((part) => (part.key ? [{ key: part.key, term: bareTerm(part.text) }] : []));
+        read.set(statement.value, terms);
+      }
+      for (const { key, term } of terms) {
+        addTo(licenses, key, entry, term);
+        if (!keys.includes(key)) keys.push(key);
       }
     }
+    if (keys.length > 0) keysOf.set(entry, keys);
   }
-  const finish = (from: ReturnType<typeof groups>): Map<string, FactGroup> =>
-    new Map([...from].map(([key, group]) => [key, { key, label: commonest(group.spellings), entries: group.entries, members: new Set(group.entries) }]));
-  const ownerGroups = finish(owners);
+  const finish = (drafts: Map<string, Draft>, label: (key: string, spelling: string) => string): Map<string, FactGroup> => {
+    const done = new Map<string, FactGroup>();
+    for (const [key, draft] of drafts) done.set(key, { key, label: label(key, commonest(draft.spellings)), entries: draft.entries });
+    return done;
+  };
+  const ownerGroups = finish(owners, (key, name) => ownerLabel({ host: hosts.get(key) ?? "github", name }));
   return {
     owners: ownerGroups,
-    licenses: finish(licenses),
-    ownerOf: (entry) => ownerGroups.get(ownerKey.get(entry) ?? "") ?? null,
+    licenses: finish(licenses, (_key, term) => term),
+    ownerOf: (entry) => {
+      const key = keysOf.get(entry)?.[0];
+      return key?.startsWith(OWNER_PREFIX) ? ownerGroups.get(key) ?? null : null;
+    },
+    holds: (entry, key) => keysOf.get(entry)?.includes(key) ?? false,
   };
 }

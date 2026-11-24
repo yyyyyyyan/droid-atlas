@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { deriveLicense, deriveLicenses, type AppStatements } from "../../../schema/join.ts";
-import { licenseKey, licenseKeysOf, licenseParts, ownerLabel, repositoryOwner } from "./fact-tokens.ts";
+import { factsFor } from "./facts.ts";
+import { licenseKey, licenseKeysOf, licenseParts, linksRepository, ownerLabel, repositoryOwner } from "./fact-tokens.ts";
 import { buildVocabulary, countOptions, describeQuery, EMPTY_QUERY, parseQuery, queryParams, runQuery, storedQueryName, toggleFilter } from "./filters.ts";
 import { app, catalog, listing } from "./fixtures.ts";
 import { buildModel } from "./model.ts";
@@ -191,5 +192,79 @@ describe("owner and license tokens in queries", () => {
     expect(storedQueryName(vocabulary, { f: "owner:github/fossifyorg" }, "Fossify")).toBe("Fossify");
     expect(storedQueryName(vocabulary, { f: "owner:github/gone,fdroid" }, "Gone")).toBe("F-Droid");
     expect(storedQueryName(vocabulary, { f: "license:gone" }, "Gone")).toBeNull();
+  });
+});
+
+describe("the sheet's license and owner rows", () => {
+  const model = buildModel(catalog({
+    apps: [
+      ...CATALOG.apps,
+      app({ id: "agreed", name: "Agreed", repo: null, licenses: [{ value: "MIT", origin: "fdroid" }, { value: "MIT", origin: "github" }] }),
+    ],
+  }), NOW);
+  const row = (id: string, key: string) => {
+    const entry = model.byId.get(id);
+    return entry ? factsFor(model, entry).find((fact) => fact.key === key) ?? null : null;
+  };
+
+  test("a license spelled differently by a second source shows once, as the first source writes it, leading to its list", () => {
+    expect(row("gallery", "license")?.lines).toEqual([
+      { value: "GPL-3.0-only", tone: "neutral", detail: null, quote: null, sources: ["F-Droid"], parts: [{ text: "GPL-3.0-only", key: "license:gpl-3.0" }] },
+    ]);
+  });
+
+  test("the same license in the same words names both sources", () => {
+    expect(row("agreed", "license")?.lines.map((line) => line.sources)).toEqual([["F-Droid", "GitHub"]]);
+  });
+
+  test("two sources stating two licenses give two lines, each leading to its own list", () => {
+    expect(row("lone", "license")?.lines.map((line) => [line.value, line.sources, line.parts?.[0]?.key])).toEqual([
+      ["Apache-2.0", ["F-Droid"], "license:apache-2.0"],
+      ["MIT", ["GitHub"], "license:mit"],
+    ]);
+  });
+
+  test("a statement that there is no license is shown as stated, leading nowhere", () => {
+    expect(row("closed", "license")?.lines).toEqual([{ value: "Proprietary", tone: "neutral", detail: null, quote: null, sources: ["awesome-shizuku"] }]);
+  });
+
+  test("the owner row appears when another entry has the same owner on the same forge, worded as the app's own slug spells it", () => {
+    expect(row("notes", "owner")?.lines).toEqual([
+      { value: "fossifyorg on GitHub", tone: "neutral", detail: null, quote: null, sources: ["GitHub"], parts: [{ text: "fossifyorg on GitHub", key: "owner:github/fossifyorg" }] },
+    ]);
+    expect(row("mirror", "owner")).toBeNull();
+    expect(row("lone", "owner")).toBeNull();
+    expect(row("closed", "owner")).toBeNull();
+  });
+});
+
+describe("who states a repository's owner", () => {
+  const index = { origin: "fdroid" as const, pkg: "a.b", version: null, updatedAt: null, addedAt: null, minSdk: null, targetSdk: null, sizeBytes: null, author: null, antiFeatures: [], antiFeatureReasons: {}, permissionCount: 0, declaresShizuku: false, declaresInternet: false };
+  const model = buildModel(catalog({
+    apps: [
+      app({ id: "confirmed", name: "Confirmed", repo: repo("github", "Team/One") }),
+      app({ id: "listed", name: "Listed", repo: repo("github", "team/two"), github: null, listings: [listing({ name: "Listed", url: "https://www.github.com/Team/Two/releases" })] }),
+      app({ id: "indexed", name: "Indexed", repo: repo("github", "team/three"), github: null, listings: [listing({ name: "Indexed", url: "https://example.org/three" })], index: [index] }),
+    ],
+  }), NOW);
+  const credit = (id: string): string[] | undefined => {
+    const entry = model.byId.get(id);
+    return entry ? factsFor(model, entry).find((fact) => fact.key === "owner")?.lines[0]?.sources : undefined;
+  };
+
+  test("is GitHub when it answered for the repository, else the catalogs that link it, else the index the address came from", () => {
+    expect(credit("confirmed")).toEqual(["GitHub"]);
+    expect(credit("listed")).toEqual(["Android FOSS"]);
+    expect(credit("indexed")).toEqual(["F-Droid"]);
+  });
+
+  test("a link leads into a repository on its forge, at its slug or below, in any letters", () => {
+    const at = { host: "codeberg" as const, slug: "Owner/Name" };
+    expect(linksRepository("https://codeberg.org/owner/name", at)).toBe(true);
+    expect(linksRepository("https://codeberg.org/Owner/Name/releases", at)).toBe(true);
+    expect(linksRepository("https://codeberg.org/owner/other", at)).toBe(false);
+    expect(linksRepository("https://github.com/owner/name", at)).toBe(false);
+    expect(linksRepository("not a url", at)).toBe(false);
+    expect(linksRepository("https://example.org/owner/name", { host: "other", slug: null })).toBe(false);
   });
 });

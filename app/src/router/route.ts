@@ -165,6 +165,11 @@ export function licenseRoute(id: string): Route {
   return { path: ["about", "license", id], params: {} };
 }
 
+/** Search narrowed by one filter token: where a fact on an app leads, such as its license. */
+export function filterRoute(token: string): Route {
+  return { path: ["search"], params: { f: token } };
+}
+
 export function categoryRoute(categoryId: string): Route {
   return { path: ["cat", categoryId], params: {} };
 }
