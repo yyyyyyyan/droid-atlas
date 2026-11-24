@@ -219,6 +219,7 @@ const app = object({
   icon: nullable(string),
   iconLarge: nullable(string),
   license: nullable(sourced(nonEmpty)),
+  licenses: list(sourced(nonEmpty)),
   index: list(indexFacts),
   github: nullable(githubFacts),
   downloads: list(downloadStat),

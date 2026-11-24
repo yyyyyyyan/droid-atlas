@@ -20,6 +20,7 @@
  *   description; with its origin.
  * - `license`: the first of F-Droid's, IzzyOnDroid's, a listing's stated
  *   license, GitHub's; with its origin.
+ * - `licenses`: every one of those statements, in the same order.
  * - `index`: the F-Droid entry, then the IzzyOnDroid entry, where present.
  * - `github`: the GitHub part's facts.
  * - `downloads`: the F-Droid, IzzyOnDroid and GitHub parts' figures for the

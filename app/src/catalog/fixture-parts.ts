@@ -31,7 +31,7 @@ export function splitParts(catalog: Catalog): CatalogParts {
     apps: Object.fromEntries(catalog.apps.flatMap((app) => {
       const facts = app.index.find((index) => index.origin === origin);
       const downloads = app.downloads.find((stat) => stat.origin === origin) ?? null;
-      return facts ? [[app.id, { facts, summary: stated(app.summary, origin), license: stated(app.license, origin), downloads }]] : [];
+      return facts ? [[app.id, { facts, summary: stated(app.summary, origin), license: app.licenses.find((statement) => statement.origin === origin)?.value ?? null, downloads }]] : [];
     })),
   });
 
@@ -60,7 +60,7 @@ export function splitParts(catalog: Catalog): CatalogParts {
       fetchedAt: catalog.enrichment.githubFetchedAt,
       downloadSource: catalog.enrichment.downloads.find((source) => source.origin === "github") ?? null,
       apps: Object.fromEntries(catalog.apps.flatMap((app) => (
-        app.github ? [[app.id, { facts: app.github, description: stated(app.summary, "github"), license: stated(app.license, "github"), downloads: app.downloads.find((stat) => stat.origin === "github") ?? null }]] : []
+        app.github ? [[app.id, { facts: app.github, description: stated(app.summary, "github"), license: app.licenses.find((statement) => statement.origin === "github")?.value ?? null, downloads: app.downloads.find((stat) => stat.origin === "github") ?? null }]] : []
       ))),
     },
   };

@@ -55,6 +55,7 @@ export function app(overrides: AppOverrides = {}): App {
     repoMissing: false,
     search: name.toLowerCase(),
     ...rest,
+    licenses: rest.licenses ?? (rest.license ? [rest.license] : []),
     facets: {
       shizuku: false,
       root: false,

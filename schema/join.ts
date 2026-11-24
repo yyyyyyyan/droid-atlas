@@ -91,14 +91,21 @@ export function deriveSummary(statements: AppStatements): Sourced<string> | null
   return null;
 }
 
+/** Every license a source states for the app, verbatim: F-Droid's, IzzyOnDroid's, each listing's in listing order, GitHub's. */
+export function deriveLicenses(statements: AppStatements): Sourced<string>[] {
+  const stated: Sourced<string>[] = [];
+  if (present(statements.fdroid?.license)) stated.push({ value: statements.fdroid.license, origin: "fdroid" });
+  if (present(statements.izzy?.license)) stated.push({ value: statements.izzy.license, origin: "izzy" });
+  for (const listing of statements.listings) {
+    if (present(listing.license)) stated.push({ value: listing.license, origin: listing.source });
+  }
+  if (present(statements.github?.license)) stated.push({ value: statements.github.license, origin: "github" });
+  return stated;
+}
+
 /** F-Droid's license, IzzyOnDroid's, the first listing's that states one, GitHub's. */
 export function deriveLicense(statements: AppStatements): Sourced<string> | null {
-  if (present(statements.fdroid?.license)) return { value: statements.fdroid.license, origin: "fdroid" };
-  if (present(statements.izzy?.license)) return { value: statements.izzy.license, origin: "izzy" };
-  const listing = statements.listings.find((l) => present(l.license));
-  if (listing && present(listing.license)) return { value: listing.license, origin: listing.source };
-  if (present(statements.github?.license)) return { value: statements.github.license, origin: "github" };
-  return null;
+  return deriveLicenses(statements)[0] ?? null;
 }
 
 export function deriveIndex(statements: AppStatements): IndexFacts[] {
@@ -209,6 +216,7 @@ function joinApp(
     icon: atlas.icon,
     iconLarge: atlas.iconLarge,
     license: deriveLicense(statements),
+    licenses: deriveLicenses(statements),
     index: deriveIndex(statements),
     github: statements.github?.facts ?? null,
     downloads: deriveDownloads(statements),

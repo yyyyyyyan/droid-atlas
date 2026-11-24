@@ -345,6 +345,8 @@ export interface App {
    */
   iconLarge: string | null;
   license: Sourced<string> | null;
+  /** Every license a source states, verbatim and in the order `license` is chosen by; `license` is the first. */
+  licenses: Sourced<string>[];
   /** One entry per repository index that carries the app; F-Droid first. */
   index: IndexFacts[];
   github: GithubFacts | null;

@@ -85,6 +85,7 @@ function app(spec: AppSpec): App {
     icon: null,
     iconLarge: null,
     license: null,
+    licenses: [],
     index,
     github: spec.github
       ? {
