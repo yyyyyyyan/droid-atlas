@@ -72,7 +72,7 @@ export function app(overrides: AppOverrides = {}): App {
       archived: null,
       ...facets,
     },
-    evidence: { shizuku: [], root: [], archived: [], noInternet: [], openness: [], pricing: [], ...evidence },
+    evidence: { shizuku: [], root: [], archived: [], noInternet: [], openness: [], pricing: [], repository: rest.repo === null ? [] : ["android-foss"], ...evidence },
   };
 }
 

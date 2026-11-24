@@ -14,8 +14,8 @@
  * side by side and never added together or ranked against each other.
  */
 
-import { androidVersion, compactNumber, fileSize, formatDate, formatDateRange, parseTime, shortDate, timeAgo } from "../lib/format.ts";
-import { licenseParts, linksRepository, ownerLabel, repositoryOwner, type LicensePart } from "./fact-tokens.ts";
+import { androidVersion, compactNumber, fileSize, formatDate, formatDateRange, parseTime, plural, shortDate, timeAgo } from "../lib/format.ts";
+import { isBareLicense, licenseTerms, ownerLabel, repositoryOwner } from "./fact-tokens.ts";
 import { antiFeatureMeaning, antiFeatureName, downloadSortOrigin, type SortId } from "./filters.ts";
 import { originName, type Entry, type Model } from "./model.ts";
 import { type DownloadOrigin, type DownloadStat, type IndexFacts, type Openness, type Origin, type Pricing, type Sourced } from "./schema.ts";
@@ -554,10 +554,36 @@ export interface FactLine {
   detail: string | null;
   /** What the source says about this entry in particular, shown quoted: an index's reason for an anti-feature. */
   quote: string | null;
-  /** Display names of everyone who states this. Empty only for "Unknown", which nobody states. */
+  /** Display names of everyone who states this. Empty for "Unknown", which nobody states, and for a repository's owner in a catalog built before its source was recorded. */
   sources: string[];
-  /** The value cut into the stretches that lead to a list of apps (a filter token) and the words between, when some of it does. */
-  parts?: LicensePart[];
+  /** The lists of entries the line leads to, when it leads to any. */
+  links?: FactLink[];
+}
+
+/** A list of entries a fact leads to: its filter token, what the list is called, and how many entries it holds. */
+export interface FactLink {
+  key: string;
+  label: string;
+  count: number;
+  /** Whether every entry in the list is an app, rather than a guide or link. */
+  apps: boolean;
+}
+
+/** What a link to a list is called: the words it shows and the size of the list, as in "GPL-3.0, 642 apps". */
+export function factLinkName(link: FactLink, words: string = link.label): string {
+  return `${words}, ${plural(link.count, link.apps ? "app" : "entry", link.apps ? "apps" : "entries")}`;
+}
+
+/**
+ * The link a line's value itself is: its one link, when the value is that
+ * list's name in any letters ("MIT", "fossifyorg on GitHub"). Null when the
+ * value is a source's own wording that the list's name does not repeat
+ * ("GPL-3.0-or-later", which leads to "GPL-3.0"): the value then stands as
+ * text, credited as stated, beside the links.
+ */
+export function valueLink(line: Pick<FactLine, "value" | "links">): FactLink | null {
+  const [only, ...rest] = line.links ?? [];
+  return only && rest.length === 0 && only.label.toLowerCase() === line.value.trim().toLowerCase() ? only : null;
 }
 
 /**
@@ -612,48 +638,87 @@ function indexFacts(model: Model, indexes: readonly IndexFacts[], facts: Fact[])
   });
 }
 
+/** The list a token leads to; null for a token whose list the catalog does not hold. */
+function factLink(model: Model, key: string): FactLink | null {
+  const facts = model.facts();
+  const group = facts.owners.get(key) ?? facts.licenses.get(key);
+  return group ? { key, label: group.label, count: group.entries.length, apps: group.entries.every((entry) => !entry.resource) } : null;
+}
+
+/** The lists a stated license leads to: one for each license it names that the catalog holds. */
+export function licenseLinks(model: Model, value: string): FactLink[] {
+  return licenseTerms(value).flatMap((term) => factLink(model, term.key) ?? []);
+}
+
+/** Adds a line that leads to lists. A line with the same words as one already there only adds its sources to it, and leads nowhere new. */
+function stateLinked(model: Model, facts: Fact[], key: string, label: string, value: string, sources: string[], keys: readonly string[]): boolean {
+  const before = facts.find((fact) => fact.key === key)?.lines.length ?? 0;
+  state(facts, key, label, "neutral", value, sources);
+  const lines = facts.find((fact) => fact.key === key)?.lines ?? [];
+  const line = lines.at(-1);
+  if (lines.length === before || !line) return false;
+  const links = keys.flatMap((token) => factLink(model, token) ?? []);
+  if (links.length > 0) line.links = links;
+  return true;
+}
+
 /**
  * Who states an app's repository, and so its owner: GitHub, when it answered
  * for the repository (its address follows the renames GitHub reports); else
- * the catalogs whose link is the repository; else the index whose source code
- * link the build read it from, which is the first that carries the app.
+ * whoever the build recorded as giving it (`Evidence.repository`). A catalog
+ * built before that was recorded names nobody.
  */
-function repositoryOrigins(entry: Entry): Origin[] {
-  const { app } = entry;
-  if (!app.repo) return [];
-  if (app.repo.host === "github" && app.github) return ["github"];
-  const repo = app.repo;
-  const linking = entry.listings.filter((listing) => linksRepository(listing.url, repo)).map((listing) => listing.source);
-  if (linking.length > 0) return linking;
-  return app.index.slice(0, 1).map((index) => index.origin);
-}
-
-/** Gives the line last added under `key` the stretches of its value that lead to a list. */
-function linkLast(facts: Fact[], key: string, parts: LicensePart[]): void {
-  const line = facts.find((fact) => fact.key === key)?.lines.at(-1);
-  if (line && parts.some((part) => part.key)) line.parts = parts;
+function repositoryOrigins(app: Entry["app"]): Origin[] {
+  if (app.repo?.host === "github" && app.github) return ["github"];
+  const recorded: readonly Origin[] | undefined = app.evidence.repository;
+  return recorded ? [...recorded] : [];
 }
 
 /**
- * One line per license the sources state, each license in it leading to the
- * apps under it. A source that writes a license another already stated in
- * other letters ("GPL-3.0" beside "GPL-3.0-only") adds no line; a source that
- * states another license does, so a disagreement shows as one.
+ * One line per license statement, in the sources' words and credited to
+ * them; sources that use the same words share a line. A statement without a
+ * version qualifier adds no line when another source states the same
+ * licenses with one: GitHub's "GPL-3.0" says nothing beside an index's
+ * "GPL-3.0-only". "GPL-3.0-only" and "GPL-3.0-or-later" are two statements
+ * and two lines. Each license leads to its list once, from the first line
+ * that names it.
  */
 function licenseFacts(model: Model, statements: readonly Sourced<string>[], facts: Fact[]): void {
-  const shown = new Map<string, string>();
+  const licensesOf = (value: string): string => licenseTerms(value).map((term) => term.key).sort().join(" ");
+  const qualified = new Set(statements.filter((statement) => !isBareLicense(statement.value)).map((statement) => licensesOf(statement.value)));
+  const linked = new Set<string>();
   for (const statement of statements) {
-    const parts = licenseParts(statement.value);
-    const keys = parts.flatMap((part) => (part.key ? [part.key] : []));
-    const same = keys.length > 0 ? keys.join(" ") : statement.value.trim().toLowerCase();
-    const first = shown.get(same);
-    if (first !== undefined && first !== statement.value) continue;
-    state(facts, "license", "License", "neutral", statement.value, names(model, [statement.origin]));
-    if (first === undefined) {
-      shown.set(same, statement.value);
-      linkLast(facts, "license", parts);
+    const keys = licenseTerms(statement.value).map((term) => term.key);
+    if (keys.length > 0 && isBareLicense(statement.value) && qualified.has(licensesOf(statement.value))) continue;
+    const fresh = keys.filter((key) => !linked.has(key));
+    if (stateLinked(model, facts, "license", "License", statement.value, names(model, [statement.origin]), fresh)) {
+      for (const key of fresh) linked.add(key);
     }
   }
+}
+
+/** A stretch of the sentence that names other entries of the same repository owner: words, or an entry, shown as a link to it. */
+export type OthersPart = { text: string } | { entry: Entry };
+
+const OTHERS_NAMED = 3;
+
+/**
+ * "Also A, B, C and 12 more": up to three of the other entries whose
+ * repository has the same owner, by name, and how many more there are.
+ * Empty when there are none.
+ */
+export function ownerOthers(model: Model, entry: Entry): OthersPart[] {
+  const others = model.facts().ownerOf(entry)?.entries.filter((other) => other !== entry) ?? [];
+  if (others.length === 0) return [];
+  const named = others.slice(0, OTHERS_NAMED);
+  const more = others.length - named.length;
+  const parts: OthersPart[] = [{ text: "Also " }];
+  named.forEach((other, at) => {
+    parts.push({ entry: other });
+    if (at < named.length - 1) parts.push({ text: at === named.length - 2 && more === 0 ? " and " : ", " });
+  });
+  if (more > 0) parts.push({ text: ` and ${more.toLocaleString("en")} more` });
+  return parts;
 }
 
 /** The sheet's details. Every line that states something names who states it. Versions, dates and counts are in `statisticsFor`. */
@@ -685,11 +750,9 @@ export function factsFor(model: Model, entry: Entry): Fact[] {
   if (app.github?.movedTo) state(facts, "moved", "Repository", "neutral", `Moved to ${app.github.movedTo}`, ["GitHub"]);
   if (app.github?.forkOf) state(facts, "fork", "Fork", "neutral", `Forked from ${app.github.forkOf}`, ["GitHub"]);
   const owner = repositoryOwner(app);
-  const others = model.facts().ownerOf(entry);
-  if (owner && others && others.entries.length > 1) {
-    const label = ownerLabel(owner);
-    state(facts, "owner", "Repository owner", "neutral", label, names(model, repositoryOrigins(entry)));
-    linkLast(facts, "owner", [{ text: label, key: others.key }]);
+  const group = model.facts().ownerOf(entry);
+  if (owner && group && group.entries.length > 1) {
+    stateLinked(model, facts, "owner", "Repository owner", ownerLabel(owner), names(model, repositoryOrigins(app)), [group.key]);
   }
   if (app.evidence.archived.length) state(facts, "archived", "Status", "caution", "Archived", names(model, app.evidence.archived));
   if (app.repoMissing) state(facts, "repo-missing", "Repository", "caution", "No longer exists", ["GitHub"]);

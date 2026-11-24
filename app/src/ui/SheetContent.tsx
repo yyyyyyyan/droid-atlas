@@ -17,14 +17,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { iconOwner, iconSourceWords } from "../catalog/credits.ts";
-import { licenseParts, type LicensePart } from "../catalog/fact-tokens.ts";
-import { detailsSource, factsFor, hasStatistics, pricingLabel, privilegeWarning, statisticsFor, termChips, type Fact, type Statistics } from "../catalog/facts.ts";
+import { detailsSource, factLinkName, factsFor, hasStatistics, licenseLinks, ownerOthers, pricingLabel, privilegeWarning, statisticsFor, termChips, valueLink, type Fact, type FactLink, type Statistics } from "../catalog/facts.ts";
 import type { Description, IconRecord } from "../catalog/load.ts";
 import { originName, type Entry } from "../catalog/model.ts";
 import type { Listing, ListingTag } from "../catalog/schema.ts";
 import { descriptionBlocks, descriptionSize, type DescriptionBlock } from "../catalog/description.ts";
 import { framedNote } from "../catalog/statements.ts";
-import { formatDate, licenseName, parseTime, plural, timeAgo } from "../lib/format.ts";
+import { formatDate, licenseName, parseTime, timeAgo } from "../lib/format.ts";
 import { actionsFor, hostOf, platformOf, readableUrl, safeWebUrl, shareUrl, type Action, type ActionKind } from "../links.ts";
 import { leftBehind, reloadForNewShell } from "../offline/client.ts";
 import { PRODUCT_NAME } from "../product.ts";
@@ -181,57 +180,41 @@ function StatisticsBlock({ statistics, now }: { statistics: Statistics; now: num
   );
 }
 
-/**
- * @param shared the source the block's heading names; a line names its own only when it differs
- */
-/**
- * A value whose stretches lead to lists of apps, such as a license: each such
- * stretch links to its list and says how many apps the list holds. A stretch
- * whose list the catalog does not hold is plain text.
- */
-function LinkedValue({ parts }: { parts: readonly LicensePart[] }) {
-  const { model } = useServices();
-  const facts = model.facts();
+/** A link to a list of entries, named by its words and the size of the list. */
+function ListLink({ link, words = link.label }: { link: FactLink; words?: string }) {
   return (
-    <>
-      {parts.map((part, at) => {
-        const group = part.key ? facts.owners.get(part.key) ?? facts.licenses.get(part.key) : undefined;
-        if (!part.key || !group) return <span key={at}>{part.text}</span>;
-        const count = group.entries.length;
-        return (
-          <RouteLink key={at} route={filterRoute(part.key)} class="fact-link" aria-label={`${part.text}, ${plural(count, "app", "apps")}`}>
-            {part.text}<span class="fact-n">{count.toLocaleString("en")}</span>
-          </RouteLink>
-        );
-      })}
-    </>
+    <RouteLink route={filterRoute(link.key)} class="fact-link" aria-label={factLinkName(link, words)}>
+      {words}<span class="fact-n">{link.count.toLocaleString("en")}</span>
+    </RouteLink>
   );
+}
+
+/**
+ * A fact's value and the lists it leads to. A value that is a list's own name
+ * is the link to it; any other value stands as its source wrote it, and each
+ * list follows it as a link with the list's own name and size.
+ */
+function FactValue({ value, links }: { value: string; links: readonly FactLink[] | undefined }) {
+  const own = valueLink({ value, links: links ? [...links] : undefined });
+  if (own) return <ListLink link={own} words={value} />;
+  return <>{value}{links?.map((link) => <span key={link.key}>{" "}<ListLink link={link} /></span>)}</>;
 }
 
 /** A few of the other entries whose repository has the same owner, by name, and how many more there are. */
 function OwnerOthers({ entry }: { entry: Entry }) {
   const { model } = useServices();
-  const group = model.facts().ownerOf(entry);
-  const others = group?.entries.filter((other) => other !== entry) ?? [];
-  if (others.length === 0) return null;
-  const named = others.slice(0, OTHERS_NAMED);
-  const more = others.length - named.length;
+  const parts = ownerOthers(model, entry);
+  if (parts.length === 0) return null;
   return (
     <span class="fact-detail fact-others">
-      Also{" "}
-      {named.map((other, at) => (
-        <span key={other.app.id}>
-          <AppLink appId={other.app.id}>{other.app.name}</AppLink>
-          {at < named.length - 1 ? (at === named.length - 2 && more === 0 ? " and " : ", ") : ""}
-        </span>
-      ))}
-      {more > 0 && <> and {plural(more, "more", "more")}</>}
+      {parts.map((part, at) => ("entry" in part ? <AppLink key={part.entry.app.id} appId={part.entry.app.id}>{part.entry.app.name}</AppLink> : <span key={at}>{part.text}</span>))}
     </span>
   );
 }
 
-const OTHERS_NAMED = 3;
-
+/**
+ * @param shared the source the block's heading names; a line names its own only when it differs
+ */
 function FactRow({ fact, shared, entry }: { fact: Fact; shared: string | null; entry: Entry }) {
   return (
     <div class="fact">
@@ -245,7 +228,7 @@ function FactRow({ fact, shared, entry }: { fact: Fact; shared: string | null; e
               <span class="fact-value">
                 {line.tone === "caution" && <Icon name="warn" size={16} />}
                 {line.tone === "good" && <Icon name="check" size={16} />}
-                <span dir="auto">{line.parts ? <LinkedValue parts={line.parts} /> : line.value}</span>
+                <span dir="auto"><FactValue value={line.value} links={line.links} /></span>
               </span>
               {own && <span class="fact-source"><Names names={line.sources} /></span>}
               {line.quote && <q class="fact-quote" dir="auto">{line.quote}</q>}
@@ -339,7 +322,7 @@ function ListingBlock({ listing, entry }: { listing: Listing; entry: Entry }) {
             </dd>
           </div>
         )}
-        {listing.license && <div><dt>License</dt><dd dir="auto"><LinkedValue parts={licenseParts(listing.license)} /></dd></div>}
+        {listing.license && <div><dt>License</dt><dd dir="auto"><FactValue value={listing.license} links={licenseLinks(model, listing.license)} /></dd></div>}
         {added !== null && <div><dt>Listed since</dt><dd>{formatDate(added)}</dd></div>}
         {parent && <div><dt>Listed under</dt><dd><AppLink appId={parent.app.id}>{parent.app.name}</AppLink></dd></div>}
         {entryUrl && <div><dt>Link</dt><dd><a href={entryUrl} target="_blank" rel="noopener" dir="auto">{readableUrl(entryUrl) ?? entryUrl}</a></dd></div>}

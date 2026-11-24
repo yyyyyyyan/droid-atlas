@@ -12,13 +12,13 @@
  *   white space as hyphens and without `-only`, `-or-later` or `+`, so
  *   "GPL-3.0-only", "GPL-3.0-or-later" and GitHub's "GPL-3.0" are one token:
  *   each of those apps may be used under version 3 of the GPL, which is all
- *   the token's name says. A statement that offers a choice ("Apache-2.0 OR
- *   MIT") is a token for each license offered. A statement that there is no
- *   license ("Proprietary", "No license") is not a license and has no token;
- *   "Closed source" in the panel answers that question.
+ *   the token's name says. A statement of several licenses is a token for
+ *   each (`licenseTerms`). A statement that there is no license
+ *   ("Proprietary", "No license") is not a license and has no token; "Closed
+ *   source" in the panel answers that question.
  *
- * Both are built from an index of the catalog made the first time one is
- * needed, so they cost nothing at start.
+ * Both are built from an index of the catalog made when the page is first
+ * idle, or sooner by whatever needs it, so they cost nothing at start.
  */
 
 import type { App, Repo } from "./schema.ts";
@@ -55,28 +55,16 @@ export function repositoryOwner(app: Pick<App, "repo">): Owner | null {
   return { key: `${OWNER_PREFIX}${repo.host}/${name.toLowerCase()}`, host: repo.host, name };
 }
 
-const FORGE_HOSTS: Record<Forge, string> = { github: "github.com", gitlab: "gitlab.com", codeberg: "codeberg.org", sourcehut: "git.sr.ht" };
-
-/** Whether a link leads into the repository: on its forge, at its slug or below it, in any letters. */
-export function linksRepository(url: string, repo: Pick<Repo, "host" | "slug">): boolean {
-  if (!repo.slug || repo.host === "other" || !Object.hasOwn(FORGE_HOSTS, repo.host)) return false;
-  try {
-    const parsed = new URL(url);
-    const path = parsed.pathname.split("/").filter(Boolean).slice(0, 2).join("/");
-    return parsed.hostname.replace(/^www\./, "").toLowerCase() === FORGE_HOSTS[repo.host] && path.toLowerCase() === repo.slug.toLowerCase();
-  } catch {
-    return false;
-  }
-}
-
 /** "fossifyorg on GitHub": who owns a repository, and where. */
 export function ownerLabel(owner: Pick<Owner, "host" | "name">): string {
   return `${owner.name} on ${FORGE_NAMES[owner.host]}`;
 }
 
+const QUALIFIER = /(-only|-or-later|\+)$/i;
+
 /** A license term without the version qualifiers the token ignores, in the source's own letters: "GPL-3.0-or-later" is "GPL-3.0". */
 function bareTerm(term: string): string {
-  return term.trim().replace(/[()]/g, "").replace(/(-only|-or-later|\+)$/i, "").trim();
+  return term.replace(/[()]/g, "").trim().replace(QUALIFIER, "").trim();
 }
 
 /** The token key of one license term, or null when the term names no license a token can carry. */
@@ -86,29 +74,55 @@ export function licenseKey(term: string): string | null {
   return `${LICENSE_PREFIX}${folded}`;
 }
 
-/** A stretch of a stated license, and the token it leads to when it names a license. */
-export interface LicensePart {
-  text: string;
-  key: string | null;
+/** The terms of a stated license: what `OR`, `AND` and `/` join, each without the exception a `WITH` adds to it. */
+function termsOf(value: string): string[] {
+  return value
+    .replace(/[()]/g, " ")
+    .split(/\s+(?:OR|AND)\s+|\s*\/\s*/i)
+    .map((term) => (term.split(/\s+WITH\s+/i)[0] ?? "").trim())
+    .filter(Boolean);
+}
+
+/** One license a statement names: how the source writes it without its version qualifier, and its token. */
+export interface LicenseTerm {
+  term: string;
+  key: string;
 }
 
 /**
- * A stated license cut into the licenses it offers and the words between,
- * so each license can lead to its own list: "Apache-2.0 OR MIT" is
- * "Apache-2.0", " OR ", "MIT". A statement of one license is one part.
+ * The licenses a stated license names, each once, in the order stated. Each
+ * term is read on its own, without parentheses and without its version
+ * qualifier, so "(MIT OR Apache-2.0)" names MIT and Apache-2.0, and
+ * "GPL-3.0-only" is GPL-3.0 wherever it stands.
+ *
+ * - "A OR B" and "A / B" offer a choice: the app may be used under each, so
+ *   each is named.
+ * - "A AND B" applies both, to different parts of the app: the app is under
+ *   each, so each is named.
+ * - "A WITH E" is license A with an exception that only adds permissions: A
+ *   is named; the exception is not a license and is not.
+ *
+ * A term that names no license ("Proprietary") is left out.
  */
-export function licenseParts(value: string): LicensePart[] {
-  return value
-    .split(/(\s+OR\s+|\s*\/\s*)/i)
-    .map((text, index) => ({ text, key: index % 2 === 0 ? licenseKey(text) : null }))
-    .filter((part) => part.text !== "");
+export function licenseTerms(value: string): LicenseTerm[] {
+  const terms: LicenseTerm[] = [];
+  for (const term of termsOf(value)) {
+    const key = licenseKey(term);
+    if (key && !terms.some((known) => known.key === key)) terms.push({ term: bareTerm(term), key });
+  }
+  return terms;
+}
+
+/** Whether a stated license names its licenses without a version qualifier, as GitHub's "GPL-3.0" does beside an index's "GPL-3.0-only". */
+export function isBareLicense(value: string): boolean {
+  return termsOf(value).every((term) => !QUALIFIER.test(term));
 }
 
 /** The license tokens an app is listed under: every license any source states for it. */
 export function licenseKeysOf(app: Pick<App, "licenses">): string[] {
-  const keys = app.licenses.flatMap((statement) => licenseParts(statement.value).flatMap((part) => (part.key ? [part.key] : [])));
-  return [...new Set(keys)];
+  return [...new Set(app.licenses.flatMap((statement) => licenseTerms(statement.value).map((term) => term.key)))];
 }
+
 
 /** The entries one token holds, and what the token is called. */
 export interface FactGroup {
@@ -179,7 +193,7 @@ export function indexFacts(entries: readonly Entry[]): FactIndex {
     for (const statement of entry.app.licenses) {
       let terms = read.get(statement.value);
       if (!terms) {
-        terms = licenseParts(statement.value).flatMap((part) => (part.key ? [{ key: part.key, term: bareTerm(part.text) }] : []));
+        terms = licenseTerms(statement.value);
         read.set(statement.value, terms);
       }
       for (const { key, term } of terms) {
