@@ -589,6 +589,49 @@ FSF-libre flag. License *texts* are fetched the same way (`text/<id>.txt` at the
 same tag) when first needed and cached in `.cache/spdx/v3.29.0/`; an offline
 build uses the cache. Deprecated ids map to `-only`, or `-or-later` with `+`.
 
+### Android's permission statements
+
+`pipeline/android/permissions.json` holds, for each permission Android
+defines, its name, its protection level as stated and its label's default
+English text, from `platform/frameworks/base` at the platform release tag
+**`android-17.0.0_r1`** (commit `94b4c163b7dfe5ce3607f7bb8456f9573f7de57d`,
+build CP2A.260605.016 as https://source.android.com/docs/setup/reference/build-numbers
+lists it), retrieved 2026-11-24. The source is published under
+**Apache-2.0**. `scripts/vendor-android-permissions.ts` writes it by hand:
+
+```sh
+node scripts/vendor-android-permissions.ts android-17.0.0_r1 --release-config cp2a
+```
+
+- **Read**: every `<permission>` directly under `<manifest>` in
+  `core/res/AndroidManifest.xml`, and the `<string>` its `android:label`
+  names in `core/res/res/values/strings.xml`: the definition with no
+  `product`, else product `default`, with Android's escapes, quotes and
+  whitespace rules applied. A declaration with no level is `normal`, as
+  Android reads it. A label written outside Android's namespace
+  (`android.label`, one in this tag) is not a label, as Android ignores it.
+- **Build flags**: 199 declarations hold only when a build flag is on or
+  off (`android:featureFlag`), and some names are declared twice, one per
+  state. Each is kept or left out by the flag values of the release
+  configuration the tag was built with (`cp2a`), read from
+  `platform/build/release` at the same tag (commit
+  `c85f4aebe46714235599a9bd6430a0fe30c6e8d5`) together with every
+  configuration it inherits; a flag none of them sets is off, as aconfig
+  leaves it. The script refuses a flag two of them set differently, and a
+  name two kept declarations define.
+- **Refused**: anything the XML reader does not accept (a document type,
+  an unknown entity, an unclosed element, past its bounds), a name or flag
+  outside its pattern, a level word Android's reference for
+  `R.attr.protectionLevel` does not list. A label that is not one line of
+  plain text, or holds a format placeholder, is left out.
+- **At this tag**: 1,160 declarations, 1,104 permissions, 147 with a label;
+  56 declarations left out by a flag; 38 declarations depend on a flag
+  `cp2a` does not set.
+- **Read by the build** through `readAndroidTable` (`lib/android-permissions.ts`),
+  which checks every row again: at most 5,000, names and levels in their
+  patterns, labels plain and at most 200 characters, sorted without
+  repeats, the tag a release tag. The build fetches nothing from Android.
+
 ### Validation
 
 Hard gates (cannot be accepted): schema shape including the strict package and

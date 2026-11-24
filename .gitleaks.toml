@@ -1,0 +1,11 @@
+# Android permission names such as android.permission.READ_DROPBOX_DATA, followed by a JSON key, match the Dropbox token rule.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Android permission names in the committed table of Android's statements"
+targetRules = ["dropbox-api-token"]
+condition = "AND"
+regexTarget = "match"
+paths = ['''(?:^|/)pipeline/android/permissions\.json$''']
+regexes = ['''android\.permission\.[A-Z_]+''']

@@ -1,5 +1,6 @@
 [files]
-# License texts, generated catalog data, the vendored SPDX license list, the
+# License texts, generated catalog data, the vendored SPDX license list and
+# Android permission table (spelled as their sources spell them), the
 # lockfile, and the taxonomy document, which is generated from the catalog and
 # carries every app's name.
 extend-exclude = [
@@ -7,6 +8,7 @@ extend-exclude = [
   "LICENSES/",
   "data/",
   "pipeline/spdx/licenses.json",
+  "pipeline/android/permissions.json",
   "pnpm-lock.yaml",
   "docs/TAXONOMY.md",
 ]

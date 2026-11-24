@@ -111,6 +111,8 @@ test("the project's own allowlist withholds the private material the release pla
     "NOTICE.md",
     "LICENSES/GPL-3.0-or-later.txt",
     "LICENSES/AGPL-3.0-only.txt",
+    "LICENSES/Apache-2.0.txt",
+    ".gitleaks.toml",
     "pipeline/build.ts",
     "docs/LICENSING.md",
     "docs/RELEASE.md",
