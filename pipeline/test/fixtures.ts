@@ -21,6 +21,8 @@ export interface FakePackage {
   antiFeatures?: string[];
   /** The index's reason for an anti-feature of the latest version, by key, as a localized map. */
   reasons?: Record<string, unknown>;
+  /** Permissions in the manifest's `usesPermissionSdk23` list. */
+  permissionsSdk23?: string[];
   /** Anti-features on an older version only. */
   oldAntiFeatures?: string[];
   /** The older version's reason for an anti-feature, by key, as a localized map. */
@@ -62,6 +64,7 @@ export function fakeIndexJson(packages: Record<string, FakePackage>, timestamp =
             versionCode: 2,
             usesSdk: { minSdkVersion: 24, targetSdkVersion: 35 },
             usesPermission: (p.permissions ?? []).map((name) => ({ name })),
+            usesPermissionSdk23: (p.permissionsSdk23 ?? []).map((name) => ({ name })),
           },
           antiFeatures: Object.fromEntries((p.antiFeatures ?? []).map((a) => [a, p.reasons?.[a] ?? {}])),
         },

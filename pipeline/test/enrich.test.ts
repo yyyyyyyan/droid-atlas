@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { batchQuery, fetchGithub, repoFromNode, type Fetch } from "../enrich/github.ts";
-import { ANTI_FEATURE_REASON_LIMIT, SHIZUKU_PERMISSION, SUMMARY_LIMIT } from "../enrich/index-v2.ts";
+import { ANTI_FEATURE_REASON_LIMIT, PERMISSION_NAMES_LIMIT, SHIZUKU_PERMISSION, SUMMARY_LIMIT } from "../enrich/index-v2.ts";
 import { fakeIndex } from "./fixtures.ts";
 
 test("an index record takes facts from the latest version and anti-features from all of them", () => {
@@ -28,6 +28,29 @@ test("an index record takes facts from the latest version and anti-features from
   assert.equal(record?.description, "Long & detailed");
   assert.equal(record?.facts.pkg, "org.example.one");
   assert.equal(index.timestamp, "2023-11-14T22:13:20.000Z");
+});
+
+test("an index record keeps the permission names it counts, sorted and without repeats", () => {
+  const index = fakeIndex("fdroid", {
+    "org.example.perm": {
+      permissions: ["org.example.perm.permission.C2D", "android.permission.INTERNET", "android.permission.CAMERA ", "android.permission.CAMERA"],
+      permissionsSdk23: ["android.permission.READ_CONTACTS"],
+    },
+    "org.example.none": {},
+  });
+  const record = index.packages.get("org.example.perm");
+  assert.deepEqual(record?.permissions, ["android.permission.CAMERA", "android.permission.INTERNET", "org.example.perm.permission.C2D"]);
+  assert.equal(record?.facts.permissionCount, 3);
+  assert.deepEqual(index.packages.get("org.example.none")?.permissions, []);
+});
+
+test("a permission name too long or with spaces or control characters is not shown, and the count is unchanged", () => {
+  const index = fakeIndex("izzy", {
+    "org.example.odd": { permissions: ["android.permission.INTERNET", "two words", "x".repeat(300), "ok.name\u0000"] },
+  });
+  const record = index.packages.get("org.example.odd");
+  assert.deepEqual(record?.permissions, ["android.permission.INTERNET"]);
+  assert.equal(record?.facts.permissionCount, 4);
 });
 
 test("an anti-feature keeps the index's English reason as plain text, bounded, and nothing when there is none", () => {
@@ -88,6 +111,15 @@ test("a huge reason or summary is cut before it is read, and ends as a marked ex
     assert.ok(text.length <= limit + 1, `${text.length} characters`);
     assert.match(text, /^Note word word .*…$/);
   }
+});
+
+test("an index entry keeps at most the name limit, the first names in alphabetical order, and the count stays the index's", () => {
+  const names = Array.from({ length: PERMISSION_NAMES_LIMIT + 100 }, (_, i) => `org.example.permission.P${String(i).padStart(4, "0")}`);
+  const index = fakeIndex("fdroid", { "org.example.many": { permissions: [...names].reverse() } });
+  const record = index.packages.get("org.example.many");
+  assert.equal(record?.permissions.length, PERMISSION_NAMES_LIMIT);
+  assert.deepEqual(record?.permissions, names.slice(0, PERMISSION_NAMES_LIMIT));
+  assert.equal(record?.facts.permissionCount, PERMISSION_NAMES_LIMIT + 100);
 });
 
 test("an index maps source-code URLs and repository keys to packages", () => {

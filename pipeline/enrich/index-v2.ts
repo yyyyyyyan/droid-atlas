@@ -32,6 +32,8 @@ export interface IndexRecord {
   iconSha256: string | null;
   /** Anti-features flagged on any version of the package, not only the latest. */
   allAntiFeatures: string[];
+  /** The latest version's permission names that `facts.permissionCount` counts, sorted, minus any that fail `PERMISSION_NAME_RE` and any past `PERMISSION_NAMES_LIMIT`. */
+  permissions: string[];
   facts: IndexFacts;
 }
 
@@ -108,6 +110,16 @@ function latestVersion(versions: Json | null): Json | null {
   return best;
 }
 
+/** Printable ASCII without spaces, at most 255 characters: what a permission name has to be to be shown. */
+const PERMISSION_NAME_RE = /^[\x21-\x7e]{1,255}$/;
+
+/**
+ * Most permission names kept for one index entry. The largest list in either
+ * index is 150 names (measured 2026-11-23); a list past the limit keeps its
+ * first names in alphabetical order, and the count stays the index's.
+ */
+export const PERMISSION_NAMES_LIMIT = 500;
+
 /** Longest anti-feature reason kept, in characters; a longer one is cut at a word and ends with an ellipsis. */
 export const ANTI_FEATURE_REASON_LIMIT = 600;
 
@@ -170,6 +182,7 @@ function record(origin: IndexOrigin, indexAt: string, repoBase: string, pkg: str
     iconUrl: iconName && iconName.startsWith("/") ? httpUrl(repoBase + iconName) : null,
     iconSha256: iconSha && /^[0-9a-f]{64}$/.test(iconSha) ? iconSha : null,
     allAntiFeatures: allAntiFeatures(object(raw["versions"])),
+    permissions: [...new Set(permissions)].filter((name) => PERMISSION_NAME_RE.test(name)).sort().slice(0, PERMISSION_NAMES_LIMIT),
     facts: {
       origin,
       pkg,

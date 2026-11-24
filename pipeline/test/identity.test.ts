@@ -458,3 +458,21 @@ test("the repository's source: the catalogs that link it, by source-code link or
   assert.deepEqual(appOf(result, "Nowhere").evidence.repository, []);
   assert.equal(appOf(result, "Nowhere").repo, null);
 });
+
+test("details: each index's permission names go to that index's shard entry, beside the first index's description", () => {
+  const result = run({
+    entries: [
+      entry({ name: "Both", url: "https://github.com/ex/both", channels: [fdroidLink("org.ex.both"), { type: "izzy", pkg: "org.ex.both", variant: null }] }),
+      entry({ name: "Bare", url: "https://github.com/ex/bare", channels: [fdroidLink("org.ex.bare")] }),
+    ],
+    fdroid: {
+      "org.ex.both": { description: "Long text", permissions: ["android.permission.INTERNET", "android.permission.CAMERA"] },
+      "org.ex.bare": {},
+    },
+    izzy: { "org.ex.both": { description: "Other text", permissions: ["android.permission.INTERNET"] } },
+  });
+  const both = appOf(result, "Both").id;
+  assert.deepEqual(result.details.fdroid[both], { description: "Long text", permissions: ["android.permission.CAMERA", "android.permission.INTERNET"] });
+  assert.deepEqual(result.details.izzy[both], { permissions: ["android.permission.INTERNET"] });
+  assert.equal(result.details.fdroid[appOf(result, "Bare").id], undefined);
+});

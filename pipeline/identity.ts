@@ -17,7 +17,7 @@
  * reported for review.
  */
 import { existsSync, readFileSync } from "node:fs";
-import type { App, Catalog, Channel, Evidence, GithubFacts, Listing, Origin, Repo, SourceCategory, Sourced, SourceId } from "../schema/catalog.ts";
+import type { App, Catalog, Channel, Evidence, DetailsEntry, GithubFacts, Listing, Origin, Repo, SourceCategory, Sourced, SourceId } from "../schema/catalog.ts";
 import {
   categoryAnswers,
   deriveDownloads,
@@ -159,8 +159,8 @@ export interface IdentityResult {
   apps: App[];
   /** What each origin states about each app, by app id: what the per-origin parts are written from. */
   statements: Map<string, AppStatements>;
-  /** Long descriptions by origin, then app id. */
-  details: { fdroid: Record<string, string>; izzy: Record<string, string> };
+  /** What is loaded on demand, by origin, then app id: long descriptions and permission names. */
+  details: Record<"fdroid" | "izzy", Record<string, DetailsEntry>>;
   redirects: Record<string, string | null>;
   ids: IdAssignment;
   merges: MergeRecord[];
@@ -656,6 +656,8 @@ interface Built {
   statements: AppStatements;
   /** Long description from the app's first index, for that origin's details shards. */
   description: { origin: "fdroid" | "izzy"; text: string } | null;
+  /** Each index's permission names for the app, where it states any. */
+  permissions: Partial<Record<"fdroid" | "izzy", string[]>>;
   iconSources: IndexRecord[];
   githubRepo: GithubRepo | null;
   candidate: IdCandidate;
@@ -816,7 +818,10 @@ function buildApp(members: Resolved[], input: IdentityInput, categoryOrder: Map<
     base: github?.forkOf ? baseId([], keys.repo, firstListing) : baseId(packages, keys.repo, firstListing),
     uniqueKey: `${first.entry.source} ${first.entry.category} ${normalizeUrl(first.entry.url)} ${first.entry.name}`,
   };
-  return { app, members: sorted, statements, description, iconSources: [f, z].filter((r): r is IndexRecord => r !== null && r !== undefined && r.iconUrl !== null), githubRepo: github ? githubRepo : null, candidate };
+  const permissions: Built["permissions"] = {};
+  if (f?.permissions.length) permissions.fdroid = f.permissions;
+  if (z?.permissions.length) permissions.izzy = z.permissions;
+  return { app, members: sorted, statements, description, permissions, iconSources: [f, z].filter((r): r is IndexRecord => r !== null && r !== undefined && r.iconUrl !== null), githubRepo: github ? githubRepo : null, candidate };
 }
 
 /** Lower-cased name without punctuation and common suffixes, for spotting near-equal names. */
@@ -905,7 +910,11 @@ export function identify(input: IdentityInput): IdentityResult {
   const githubRepos = new Map<string, GithubRepo>();
   for (const b of sortedBuilt) {
     if (b.githubRepo) githubRepos.set(b.app.id, b.githubRepo);
-    if (b.description) details[b.description.origin][b.app.id] = b.description.text;
+    if (b.description) details[b.description.origin][b.app.id] = { description: b.description.text };
+    for (const origin of ["fdroid", "izzy"] as const) {
+      const names = b.permissions[origin];
+      if (names) details[origin][b.app.id] = { ...details[origin][b.app.id], permissions: names };
+    }
     if (b.iconSources.length) iconSources.set(b.app.id, b.iconSources);
     statements.set(b.app.id, b.statements);
   }

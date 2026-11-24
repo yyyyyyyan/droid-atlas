@@ -261,6 +261,7 @@ export interface IndexFacts {
    * English and plain text; a key the index gives no reason for has no entry.
    */
   antiFeatureReasons: Record<string, string>;
+  /** Distinct permission names in the latest version's manifest; the names are in this index's details shards. */
   permissionCount: number;
   declaresShizuku: boolean;
   declaresInternet: boolean;
@@ -410,5 +411,15 @@ export function detailsShard(id: string, shards: number): number {
   return (hash >>> 0) % shards;
 }
 
-/** One details shard: long text loaded on demand, keyed by app id. All text in a shard comes from one origin. */
-export type DetailsShard = Record<string, { description: string }>;
+/**
+ * What one origin states about one app that is loaded on demand: the long
+ * description, when this is the first index to give one, and the permission
+ * names behind `IndexFacts.permissionCount`, sorted, when there are any.
+ */
+export interface DetailsEntry {
+  description?: string;
+  permissions?: string[];
+}
+
+/** One details shard, keyed by app id. Everything in a shard comes from one origin. */
+export type DetailsShard = Record<string, DetailsEntry>;

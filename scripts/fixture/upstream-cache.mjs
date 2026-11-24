@@ -303,7 +303,7 @@ const FDROID_PACKAGES = {
     description: "An invented browser with an invented anti-feature.",
     license: "MPL-2.0",
     sourceCode: "https://github.com/fixture-org/fixture-browser",
-    permissions: ["android.permission.INTERNET"],
+    permissions: ["android.permission.INTERNET", "org.fixture.browser.permission.SYNC"],
     antiFeatures: ["NonFreeNet"],
     reasons: { NonFreeNet: { "en-US": "Synthetic reason for CI: loads invented pages from an invented service." } },
     icon: INDEX_ICONS.fdroid["org.fixture.browser"],

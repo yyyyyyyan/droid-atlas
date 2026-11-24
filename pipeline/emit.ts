@@ -4,7 +4,7 @@
  *   version.json                                the only mutable file, written last
  *   c/<digest>/manifest.json                    every file of the build with sha256 and license
  *   c/<digest>/atlas.json, sources/*.json, icons.json
- *   c/<digest>/details/<origin>/<n>.json        long text, one origin per shard
+ *   c/<digest>/details/<origin>/<n>.json        long text and permission names, one origin per shard
  *   icons/<content-hash>.webp                   written by the icon stage
  *   upstream/<source>/<commit>…                 snapshot of the upstream files used
  *   licenses/<SPDX-id>.txt                      every license the manifest or icons.json names
@@ -24,6 +24,7 @@ import {
   type Catalog,
   type CatalogVersion,
   type Category,
+  type DetailsEntry,
   type DetailsShard,
   type EnrichmentInfo,
   type Region,
@@ -46,7 +47,7 @@ export interface CatalogFields {
   redirects: Record<string, string | null>;
 }
 
-export type DetailsByOrigin = { fdroid: Record<string, string>; izzy: Record<string, string> };
+export type DetailsByOrigin = Record<"fdroid" | "izzy", Record<string, DetailsEntry>>;
 
 /** Budget for one details shard, gzip-compressed (docs/ARCHITECTURE.md § Budgets), with headroom. */
 export const SHARD_TARGET_BYTES = 32_000;
@@ -95,23 +96,35 @@ export function gzipSize(text: string): number {
   return gzipSync(text, { level: 9 }).length;
 }
 
-function shardsFor(details: Record<string, string>, count: number): DetailsShard[] {
+function shardsFor(details: Record<string, DetailsEntry>, count: number): DetailsShard[] {
   const shards: DetailsShard[] = Array.from({ length: count }, () => ({}));
   for (const id of Object.keys(details).sort()) {
     const shard = shards[detailsShard(id, count)];
-    const text = details[id];
-    if (shard && text !== undefined) shard[id] = { description: text };
+    const entry = details[id];
+    if (shard && entry !== undefined) shard[id] = entry;
   }
   return shards;
 }
 
-/** The smallest shard count, shared by all origins, whose largest shard stays under the target. */
+/**
+ * The smallest shard count, shared by all origins, whose largest shard stays
+ * under the target. An entry that is past the target by itself raises the
+ * target to its own size plus the target, so it shares a shard of ordinary
+ * size and the build does not split into a shard per app; the count also
+ * stops growing once the largest shard holds a single entry.
+ */
 export function shardCount(details: DetailsByOrigin): number {
-  const totals = [details.fdroid, details.izzy].map((d) => gzipSize(JSON.stringify(d)));
+  const origins = [details.fdroid, details.izzy];
+  const totals = origins.map((d) => gzipSize(JSON.stringify(d)));
   const ids = Math.max(Object.keys(details.fdroid).length, Object.keys(details.izzy).length, 1);
-  for (let count = Math.max(1, Math.ceil(Math.max(...totals) / SHARD_TARGET_BYTES)); ; count++) {
-    const largest = Math.max(...[details.fdroid, details.izzy].flatMap((d) => shardsFor(d, count).map((s) => gzipSize(JSON.stringify(s)))));
-    if (largest <= SHARD_TARGET_BYTES || count >= ids) return count;
+  const largestEntry = Math.max(0, ...origins.flatMap((d) => Object.entries(d).map(([id, entry]) => gzipSize(JSON.stringify({ [id]: entry })))));
+  const target = largestEntry > SHARD_TARGET_BYTES ? largestEntry + SHARD_TARGET_BYTES : SHARD_TARGET_BYTES;
+  for (let count = Math.max(1, Math.ceil(Math.max(...totals) / target)); ; count++) {
+    const shards = origins.flatMap((d) => shardsFor(d, count));
+    const sizes = shards.map((s) => gzipSize(JSON.stringify(s)));
+    const largest = Math.max(...sizes);
+    const alone = Object.keys(shards[sizes.indexOf(largest)] ?? {}).length <= 1;
+    if (largest <= target || alone || count >= ids) return count;
   }
 }
 
