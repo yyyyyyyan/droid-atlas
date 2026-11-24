@@ -70,7 +70,8 @@ names its source, and every app links to its own pages there.
   the results by facts such as open source, no internet permission, on F-Droid
   or works with Shizuku, and pin a search to keep it.
 - **Check an app before you get it.** An app's details show its description,
-  statistics and who lists it, each with its source.
+  statistics and who lists it, each with its source. They also show the
+  index's reason for each anti-feature.
 - **Get the app.** Buttons open the app's page on F-Droid or IzzyOnDroid, add
   it to Obtainium, or open its source code. Droid Atlas links to apps. It
   doesn't host, download or install them.
@@ -98,7 +99,7 @@ If Settings shows no install button, open the browser's menu and select
 |---|---|
 | [Android FOSS](https://github.com/offa/android-foss) | Names, links and the list's categories |
 | [awesome-shizuku](https://github.com/timschneeb/awesome-shizuku) | Names, links, descriptions and tags |
-| [F-Droid](https://f-droid.org) and [IzzyOnDroid](https://apt.izzysoft.de/fdroid/) | Summaries, descriptions, licenses, versions, icons and download figures. Anti-features: their flags for things you may not want, such as ads or tracking |
+| [F-Droid](https://f-droid.org) and [IzzyOnDroid](https://apt.izzysoft.de/fdroid/) | Summaries, descriptions, licenses, versions, icons and download figures. Anti-features: their flags for things you may not want, such as ads or tracking, with the reason they give |
 | GitHub | Stars, activity, archived and moved repositories, latest releases |
 
 The catalog is rebuilt every day from these sources. A build is published only

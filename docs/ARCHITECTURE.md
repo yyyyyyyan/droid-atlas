@@ -358,6 +358,9 @@ data/report.json, data/report.md                build report
 data/licenses/<SPDX-id>.txt                     text of every license the manifest or icons.json names
 ```
 
+Each index's reason for an anti-feature is short and is part of its index
+facts in `sources/<index>.json`.
+
 `<hash>` in a directory name is a digest of the bytes of every file in that
 build, so nothing under `data/c/` is ever rewritten in place. It is not the
 catalog hash in `version.json`: that one identifies the catalog's content and
