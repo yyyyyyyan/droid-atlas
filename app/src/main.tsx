@@ -155,12 +155,22 @@ function Boot() {
     requestAnimationFrame(() => requestAnimationFrame(() => performance.mark("atlas:first-view")));
     afterLaunch(new URL("./data/", document.baseURI).href, shown);
   }, [shown]);
-  /* The owner and license index is built while the page is idle, so the first app opened does not wait for it; whatever needs it sooner builds it then. */
-  useEffect(() => (model ? whenIdle(() => {
-    const start = performance.now();
-    model.facts();
-    performance.measure("atlas:fact-index", { start, end: performance.now() });
-  }, FACT_INDEX_WITHIN_MS) : undefined), [model]);
+  /* The owner and license index is built while the page is idle after the first view, so neither that view nor the first app opened waits for it; whatever needs it sooner builds it then. */
+  useEffect(() => {
+    if (!model) return undefined;
+    let cancel = (): void => undefined;
+    const frame = requestAnimationFrame(() => requestAnimationFrame(() => {
+      cancel = whenIdle(() => {
+        const start = performance.now();
+        model.facts();
+        performance.measure("atlas:fact-index", { start, end: performance.now() });
+      }, FACT_INDEX_WITHIN_MS);
+    }));
+    return () => {
+      cancelAnimationFrame(frame);
+      cancel();
+    };
+  }, [model]);
 
   if (state.phase === "ready") {
     return <ServicesContext.Provider value={state.services}><App /></ServicesContext.Provider>;
