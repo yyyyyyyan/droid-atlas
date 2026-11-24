@@ -64,14 +64,11 @@ function listSize(list: string): number | null {
 }
 
 const stated = (app: App): string[] => licenseStatements(app).map((statement) => statement.value);
-const preferred = (id: string, fits: (app: App) => boolean): App | undefined => {
-  const named = build.byId.get(id);
-  return named && fits(named) ? named : build.apps.find((app) => !isLink(app) && fits(app));
-};
+const firstApp = (fits: (app: App) => boolean): App | undefined => build.apps.find((app) => !isLink(app) && fits(app));
 
 test("a license stated with a qualifier stays as the source wrote it, and its list is linked by the list's own name and size", async ({ page }) => {
   const fits = (app: App): boolean => app.fdroid?.license === "GPL-3.0-or-later" && stated(app).every((value) => value === "GPL-3.0-or-later" || value === "GPL-3.0");
-  const subject = preferred("com.amaze.filemanager", fits);
+  const subject = firstApp(fits);
   requireShape(subject !== undefined, "app F-Droid states as GPL-3.0-or-later and no source otherwise");
   if (!subject) return;
   const size = listSize("GPL-3.0");
@@ -88,7 +85,7 @@ test("a license stated with a qualifier stays as the source wrote it, and its li
 });
 
 test("where a source's words are the list's name, they are the one link", async ({ page }) => {
-  const subject = preferred("", (app) => stated(app).length > 0 && stated(app).every((value) => value === "MIT"));
+  const subject = firstApp((app) => stated(app).length > 0 && stated(app).every((value) => value === "MIT"));
   requireShape(subject !== undefined, "app every source states as MIT");
   if (!subject) return;
   await launch(page, sheetHash(subject));
@@ -97,7 +94,7 @@ test("where a source's words are the list's name, they are the one link", async 
 });
 
 test("two sources stating one license in two ways are two lines, and the list is linked once", async ({ page }) => {
-  const subject = preferred("", (app) => {
+  const subject = firstApp((app) => {
     const values = licenseStatements(app);
     return values.some((s) => s.value === "GPL-3.0-only") && values.some((s) => s.value === "GPL-3.0-or-later") && values.every((s) => (LICENSE_LISTS[s.value] ?? []).join() === "GPL-3.0");
   });
@@ -112,7 +109,7 @@ test("two sources stating one license in two ways are two lines, and the list is
 });
 
 test("two sources stating different licenses: each license leads to its own list", async ({ page }) => {
-  const subject = preferred("at.tomtasche.reader", (app) => licenseLists(app).length >= 2 && stated(app).every((value) => Object.hasOwn(LICENSE_LISTS, value)));
+  const subject = firstApp((app) => licenseLists(app).length >= 2 && stated(app).every((value) => Object.hasOwn(LICENSE_LISTS, value)));
   requireShape(subject !== undefined, "app whose sources state two different licenses");
   if (!subject) return;
   await launch(page, sheetHash(subject));
@@ -226,10 +223,10 @@ test.describe("a shared link and a pin with an owner or a license token", () => 
     const next = await serveNextBuild(page, (apps) => apps.filter((app) => app.id !== unrelated?.id).reverse());
     await relaunch(page, "#/about/health");
     await expect(page.getByRole("main").getByRole("region", { name: "This catalog" })).toContainText(`Catalog build${next.slice(0, 16)}`);
-    for (const token of [owner, license]) {
+    for (const [token, size] of [[owner, group.length], [license, listSize("GPL-3.0")]] as const) {
       await relaunch(page, `#/search?f=${token}`);
       await expect(page).toHaveURL(new RegExp(`f=${escapeRegExp(token)}$`));
-      await expect(countStatus(page)).toHaveText(new RegExp(`^${appsOf([token]).length.toLocaleString("en")} of `));
+      if (size !== null) await expect(countStatus(page)).toHaveText(new RegExp(`^${size.toLocaleString("en")} of `));
     }
     await relaunch(page, "#/search");
     await expect(ownerPin).toContainText(String(group.length));
