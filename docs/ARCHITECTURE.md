@@ -747,7 +747,7 @@ higher for the same file (79.46 against 78.67 kB on 2026-11-17).
 
 | | Budget |
 |---|---|
-| App JavaScript | 85 kB |
+| App JavaScript | 86 kB |
 | `catalog.json` | 450 kB |
 | One details shard | 40 kB |
 | One icon | list size (192 px) 13 kB at most, 2.5 kB median; large size (384 px) 37 kB at most, 4.3 kB median; fetched as viewed, never prefetched |

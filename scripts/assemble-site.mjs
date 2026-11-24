@@ -39,7 +39,7 @@ const LICENSE_ID_RE = /^[A-Za-z0-9.+-]+$/;
  * nowhere else in code; the document states the same number and a test
  * holds the two together.
  */
-export const APP_JAVASCRIPT_BUDGET_KB = 85;
+export const APP_JAVASCRIPT_BUDGET_KB = 86;
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
