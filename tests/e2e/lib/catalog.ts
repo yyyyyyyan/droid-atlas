@@ -340,6 +340,7 @@ export function antiFeaturesUsed(build: Build): { id: string; description: strin
 /**
  * Text words must all occur in the searchable text; plain facts must all hold; region, category, source and openness tokens are alternatives within their group.
  * `af:<key>` holds for an app an index flags with that anti-feature, and `no:<key>` for one some index carries without flagging it.
+ * `owner:` and `license:` hold as `ownerToken` and `licenseTokens` say.
  */
 export function matchingApps(build: Build, text: string, filters: string[]): App[] {
   const words = fold(text).split(/\s+/).filter(Boolean);
