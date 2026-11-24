@@ -72,6 +72,9 @@ names its source, and every app links to its own pages there.
 - **Check an app before you get it.** An app's details show its description,
   statistics and who lists it, each with its source. They also show the
   index's reason for each anti-feature.
+- **Follow a fact to other apps.** An app's license leads to the other apps
+  under it. When the owner of an app's repository has other apps here, its
+  details say so and lead to them.
 - **Get the app.** Buttons open the app's page on F-Droid or IzzyOnDroid, add
   it to Obtainium, or open its source code. Droid Atlas links to apps. It
   doesn't host, download or install them.

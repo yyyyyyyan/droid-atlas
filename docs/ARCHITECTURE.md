@@ -443,6 +443,48 @@ category that holds nothing, or for a word that only occurs in apps' names
 and summaries (`categoriesNamed` in `catalog/filters.ts`). The rows are a
 `nav` of their own, not part of the list, and are not counted with the apps.
 
+#### Facts that lead to lists
+
+The filter panel holds the questions a person brings before they know any
+app. A fact with many values is reached from an app instead: in its details,
+the value links to `#/search?f=<token>`, an ordinary list where the token is
+a removable chip that combines with every other filter, text and sort, and
+can be pinned and shared. Two families of tokens work this way
+(`catalog/fact-tokens.ts`); neither is offered in the panel or as a lens.
+
+| Token | Holds | Chip |
+|---|---|---|
+| `owner:<host>/<owner>` | Entries whose repository (`App.repo.slug`) is on that forge, one of the four named ones, under that owner, compared without regard to case. The same name on two forges is two owners; nothing groups owners into one developer | "fossifyorg on GitHub", spelled as most of the owner's slugs spell it |
+| `license:<license>` | Entries for which at least one source (F-Droid, IzzyOnDroid, a list, GitHub: `App.licenses`) states that license | "GPL-3.0", spelled as most sources write it |
+
+A license token is the stated license lower-cased, with spaces as hyphens and
+without `-only`, `-or-later` or `+`. So "GPL-3.0-only", "GPL-3.0-or-later" and
+GitHub's "GPL-3.0" are one token: each of those apps may be used under version
+3 of the GPL, which is all the chip says, whereas a token per spelling would
+split one license by how a source happens to write it. A statement that offers
+a choice ("Apache-2.0 OR MIT") is a token for each license offered. A
+statement that there is no license ("Proprietary", "No license") has no
+token: it is a list's wording for a closed app, and "Closed source" in the
+panel already asks that question, from every source that states it.
+
+In an app's details, the License row has a line for each license the sources
+state, each license linked to its list with the number of entries in it; a
+source that writes a license another already stated in other letters adds no
+line. When at least one other entry has the same repository owner, a
+Repository owner row links to the owner's list, names up to three of the
+other entries and says how many more there are. Its source is GitHub when
+GitHub answered for the repository, else the lists whose link is the
+repository, else the index it was read from. An app without a repository on a
+named forge, or whose owner has no other entry, has no such row.
+
+Tokens are read in any letters and kept in lower case; an owner or license
+token comes first in a query, before the panel's tokens. Both families are
+built from an index of the catalog made the first time a query or an app's
+details need one, so the start of the app does not pay for about a thousand
+owners. A token whose owner or license the catalog no longer holds is dropped
+like any unknown token, and a pin that stored one is named by what it still
+filters (`storedQueryName`).
+
 ### What is a history entry
 
 **Anything with its own URL is a history entry. Anything without one is a
