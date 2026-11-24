@@ -457,31 +457,46 @@ can be pinned and shared. Two families of tokens work this way
 | `owner:<host>/<owner>` | Entries whose repository (`App.repo.slug`) is on that forge, one of the four named ones, under that owner, compared without regard to case. The same name on two forges is two owners; nothing groups owners into one developer | "fossifyorg on GitHub", spelled as most of the owner's slugs spell it |
 | `license:<license>` | Entries for which at least one source (F-Droid, IzzyOnDroid, a list, GitHub: `App.licenses`) states that license | "GPL-3.0", spelled as most sources write it |
 
-A license token is the stated license lower-cased, with spaces as hyphens and
-without `-only`, `-or-later` or `+`. So "GPL-3.0-only", "GPL-3.0-or-later" and
-GitHub's "GPL-3.0" are one token: each of those apps may be used under version
-3 of the GPL, which is all the chip says, whereas a token per spelling would
-split one license by how a source happens to write it. A statement that offers
-a choice ("Apache-2.0 OR MIT") is a token for each license offered. A
-statement that there is no license ("Proprietary", "No license") has no
-token: it is a list's wording for a closed app, and "Closed source" in the
-panel already asks that question, from every source that states it.
+A license token is a license as stated, lower-cased, with spaces as hyphens
+and without `-only`, `-or-later` or `+`. So "GPL-3.0-only", "GPL-3.0-or-later"
+and GitHub's "GPL-3.0" are one token: each of those apps may be used under
+version 3 of the GPL, which is all the chip says, whereas a token per spelling
+would split one license by how a source happens to write it. A statement of
+several licenses is read term by term, without parentheses, each term folded
+on its own: "A OR B" and "A / B" offer a choice and "A AND B" applies both, so
+each names A and B; "A WITH E" names A, since an exception only adds
+permissions and is not a license. A statement that there is no license
+("Proprietary", "No license") has no token: it is a list's wording for a
+closed app, and "Closed source" in the panel already asks that question, from
+every source that states it.
 
-In an app's details, the License row has a line for each license the sources
-state, each license linked to its list with the number of entries in it; a
-source that writes a license another already stated in other letters adds no
-line. When at least one other entry has the same repository owner, a
-Repository owner row links to the owner's list, names up to three of the
-other entries and says how many more there are. Its source is GitHub when
-GitHub answered for the repository, else the lists whose link is the
-repository, else the index it was read from. An app without a repository on a
-named forge, or whose owner has no other entry, has no such row.
+In an app's details, the License row has a line for each statement, in the
+source's own words and credited to it; sources that use the same words share
+a line. A statement without a version qualifier adds no line beside another
+that states the same licenses with one: GitHub's "GPL-3.0" says nothing next
+to an index's "GPL-3.0-only". "GPL-3.0-only" and "GPL-3.0-or-later" are two
+statements and two lines. Each license's list is linked once, from the first
+line that names it, by the list's own name and the number of entries in it
+("GPL-3.0 642"); where the source's words are that name ("MIT"), they are the
+link. The license in a list's own entry, under Sources and credits, is shown
+the same way.
+
+When at least one other entry has the same repository owner, a Repository
+owner row links to the owner's list, names up to three of the other entries
+and says how many more there are. Its source is GitHub when GitHub answered
+for the repository; otherwise whoever the build recorded as giving it
+(`Evidence.repository`): the lists whose entry links it, by its source-code
+link or its main link, else the index whose source-code field it was read
+from. A catalog built before that was recorded names no source for it. An app
+without a repository on a named forge, or whose owner has no other entry, has
+no such row.
 
 Tokens are read in any letters and kept in lower case; an owner or license
 token comes first in a query, before the panel's tokens. Both families are
-built from an index of the catalog made the first time a query or an app's
-details need one, so the start of the app does not pay for about a thousand
-owners. A token whose owner or license the catalog no longer holds is dropped
+built from an index of the catalog made in its own task once the page is first
+idle after its first view (within three seconds), or sooner by a query or an
+app's details that need it, so the start of the app does not pay for about a
+thousand owners. A token whose owner or license the catalog no longer holds is dropped
 like any unknown token, and a pin that stored one is named by what it still
 filters (`storedQueryName`).
 
