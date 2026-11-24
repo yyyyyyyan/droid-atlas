@@ -44,7 +44,7 @@ import {
 import { descriptionBlocks, descriptionSize } from "./description.ts";
 import { app, catalog, listing, sourceCategory } from "./fixtures.ts";
 import { buildModel, type Entry, type Model } from "./model.ts";
-import type { AntiFeature, App } from "./schema.ts";
+import type { AntiFeature, App, IndexFacts } from "./schema.ts";
 
 const NOW = Date.parse("2026-11-11T00:00:00Z");
 const DAY = 86_400_000;
@@ -630,6 +630,41 @@ describe("facts", () => {
       ["Tracking", "This app tracks and reports your activity to somewhere, even if it can be turned off", ["IzzyOnDroid"]],
       ["Non-free network services", "This app promotes or depends entirely on a non-free network service", ["IzzyOnDroid"]],
     ]);
+  });
+
+  describe("what an index says of its own flags", () => {
+    const index = (origin: "fdroid" | "izzy", extra: Partial<IndexFacts> = {}): IndexFacts => ({
+      origin, pkg: "org.example.app", version: "1.2", updatedAt: null, addedAt: null, minSdk: null, targetSdk: null,
+      sizeBytes: null, author: null, antiFeatures: [], antiFeatureReasons: {}, permissionCount: 0, declaresShizuku: false, declaresInternet: true, ...extra,
+    });
+    const flaggedLines = (indexes: IndexFacts[]) => {
+      const subject = buildModel(catalog({ apps: [app({ id: "flagged", index: indexes, github: null })], antiFeatures: ANTI_FEATURES }), NOW);
+      return factsFor(subject, subject.byId.get("flagged") as Entry).filter((fact) => fact.label === "Anti-feature").flatMap((fact) => fact.lines);
+    };
+
+    test("an anti-feature quotes the index's reason, and says nothing more where the index gives none", () => {
+      const lines = flaggedLines([index("izzy", { antiFeatures: ["NonFreeNet", "Tracking"], antiFeatureReasons: { Tracking: "Sends usage counts." } })]);
+      expect(lines.map((line) => [line.value, line.quote, line.sources])).toEqual([
+        ["Non-free network services", null, ["IzzyOnDroid"]],
+        ["Tracking", "Sends usage counts.", ["IzzyOnDroid"]],
+      ]);
+    });
+
+    test("two indexes giving different reasons for one flag are two lines, each naming its own index", () => {
+      const lines = flaggedLines([
+        index("fdroid", { antiFeatures: ["Tracking"], antiFeatureReasons: { Tracking: "Crash reports are on by default." } }),
+        index("izzy", { antiFeatures: ["Tracking"], antiFeatureReasons: { Tracking: "Sends usage counts." } }),
+      ]);
+      expect(lines.map((line) => [line.quote, line.sources])).toEqual([
+        ["Crash reports are on by default.", ["F-Droid"]],
+        ["Sends usage counts.", ["IzzyOnDroid"]],
+      ]);
+    });
+
+    test("facts from a build that carries no reasons show none", () => {
+      const older = { ...index("izzy", { antiFeatures: ["Tracking"] }), antiFeatureReasons: undefined } as unknown as IndexFacts;
+      expect(flaggedLines([older]).map((line) => line.quote)).toEqual([null]);
+    });
   });
 
   test("two indexes that agree are one line naming both, and two that differ are two lines of one row", () => {

@@ -188,17 +188,18 @@ function FactRow({ fact, shared }: { fact: Fact; shared: string | null }) {
     <div class="fact">
       <dt>{fact.label}</dt>
       <dd>
-        {fact.lines.map((line) => {
+        {fact.lines.map((line, at) => {
           const sources = line.sources.join(", ");
           const own = sources !== "" && sources !== shared;
           return (
-            <div class={`fact-line fact-${line.tone}${own ? " has-source" : ""}`} key={line.value}>
+            <div class={`fact-line fact-${line.tone}${own ? " has-source" : ""}`} key={`${line.value}-${at}`}>
               <span class="fact-value">
                 {line.tone === "caution" && <Icon name="warn" size={16} />}
                 {line.tone === "good" && <Icon name="check" size={16} />}
                 <span dir="auto">{line.value}</span>
               </span>
               {own && <span class="fact-source"><Names names={line.sources} /></span>}
+              {line.quote && <q class="fact-quote" dir="auto">{line.quote}</q>}
               {line.detail && <span class="fact-detail" dir="auto">{line.detail}</span>}
             </div>
           );

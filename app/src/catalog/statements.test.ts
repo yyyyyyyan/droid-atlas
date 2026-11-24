@@ -67,8 +67,8 @@ const SHAPES: { name: string; shape: Shape; inIt: string[] }[] = [
 ];
 
 const UNKNOWN = [
-  { key: "permissions", label: "Permissions", lines: [{ value: "Unknown", tone: "neutral", detail: null, sources: [] }] },
-  { key: "anti-unknown", label: "Anti-features", lines: [{ value: "Unknown", tone: "neutral", detail: null, sources: [] }] },
+  { key: "permissions", label: "Permissions", lines: [{ value: "Unknown", tone: "neutral", detail: null, quote: null, sources: [] }] },
+  { key: "anti-unknown", label: "Anti-features", lines: [{ value: "Unknown", tone: "neutral", detail: null, quote: null, sources: [] }] },
 ];
 
 describe("what the sheet says of an entry is true of that entry, and is said in rows, not sentences", () => {

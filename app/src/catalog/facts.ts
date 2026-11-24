@@ -551,6 +551,8 @@ export interface FactLine {
   tone: Tone;
   /** A sentence of explanation in the source's own words, where it gives one. */
   detail: string | null;
+  /** What the source says about this entry in particular, shown quoted: an index's reason for an anti-feature. */
+  quote: string | null;
   /** Display names of everyone who states this. Empty only for "Unknown", which nobody states. */
   sources: string[];
 }
@@ -571,15 +573,15 @@ function names(model: Model, origins: readonly Origin[]): string[] {
 }
 
 /** Adds a statement under a label. Sources that say the same thing share a line, so two indexes agreeing show once with both named. */
-function state(facts: Fact[], key: string, label: string, tone: Tone, value: string, sources: string[], detail: string | null = null): void {
+function state(facts: Fact[], key: string, label: string, tone: Tone, value: string, sources: string[], detail: string | null = null, quote: string | null = null): void {
   let fact = facts.find((other) => other.key === key);
   if (!fact) {
     fact = { key, label, lines: [] };
     facts.push(fact);
   }
-  const same = fact.lines.find((line) => line.value === value && line.detail === detail);
+  const same = fact.lines.find((line) => line.value === value && line.detail === detail && line.quote === quote);
   if (same) same.sources = [...new Set([...same.sources, ...sources])];
-  else fact.lines.push({ value, tone, detail, sources });
+  else fact.lines.push({ value, tone, detail, quote, sources });
 }
 
 function indexFacts(model: Model, indexes: readonly IndexFacts[], facts: Fact[]): void {
@@ -597,9 +599,12 @@ function indexFacts(model: Model, indexes: readonly IndexFacts[], facts: Fact[])
     if (index.author) state(facts, "author", "Author", "neutral", index.author, source);
   });
   each((index, source) => {
+    /* A catalog built before reasons were kept has none. */
+    const reasons: Partial<Record<string, string>> = index.antiFeatureReasons ?? {};
     for (const id of index.antiFeatures) {
       const feature = model.antiFeatures.get(id);
-      state(facts, `anti-${id}`, "Anti-feature", "caution", antiFeatureLabel(model, id), source, feature ? antiFeatureMeaning(feature, index.origin) : null);
+      const reason = Object.hasOwn(reasons, id) ? reasons[id] : undefined;
+      state(facts, `anti-${id}`, "Anti-feature", "caution", antiFeatureLabel(model, id), source, feature ? antiFeatureMeaning(feature, index.origin) : null, reason ?? null);
     }
   });
 }
