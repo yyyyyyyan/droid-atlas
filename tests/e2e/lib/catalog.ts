@@ -282,6 +282,42 @@ export const FILTER_TESTS: Record<string, (app: App) => boolean> = {
   recommended: (a) => a.atlas.facets.recommended,
 };
 
+/** The `owner:` token of an app: its repository's forge and owner, the owner in lower case; null for a repository on no named forge, or none. */
+export function ownerToken(app: App): string | null {
+  const { repo } = app.atlas;
+  const owner = repo?.slug?.split("/")[0];
+  return repo && repo.host !== "other" && owner ? `owner:${repo.host}/${owner.toLowerCase()}` : null;
+}
+
+/** Every license a source states for an app, verbatim: F-Droid's, IzzyOnDroid's, each listing's, GitHub's. */
+export function licenseStatements(app: App): { value: string; origin: string }[] {
+  const stated = [
+    { value: app.fdroid?.license, origin: "fdroid" },
+    { value: app.izzy?.license, origin: "izzy" },
+    ...app.listings.map((listing) => ({ value: listing.license, origin: listing.source as string })),
+    { value: loadBuild().github.apps[app.id]?.license, origin: "github" },
+  ];
+  return stated.filter((statement): statement is { value: string; origin: string } => typeof statement.value === "string" && statement.value !== "");
+}
+
+const NO_LICENSE = /^(proprietary|propietary|no-license|none|noassertion|all-rights-reserved|unlicensed)$/;
+
+/**
+ * The `license:` tokens a stated license gives (docs/ARCHITECTURE.md): one
+ * per license an `OR` or `/` offers, lower-cased, spaces as hyphens, without
+ * `-only`, `-or-later` or `+`; none for a statement that there is no license.
+ */
+export function licenseTokensOf(value: string): string[] {
+  return value.split(/\s+OR\s+|\s*\/\s*/i).flatMap((term) => {
+    const name = term.replace(/[()]/g, "").trim().replace(/(-only|-or-later|\+)$/i, "").trim().toLowerCase().replace(/\s+/g, "-");
+    return /^[a-z0-9][a-z0-9.-]{0,63}$/.test(name) && !NO_LICENSE.test(name) ? [`license:${name}`] : [];
+  });
+}
+
+export function licenseTokens(app: App): string[] {
+  return [...new Set(licenseStatements(app).flatMap((statement) => licenseTokensOf(statement.value)))];
+}
+
 /** The keys of the anti-features either index flags on an app. */
 export function antiFeaturesOf(app: App): string[] {
   return [...new Set([...(app.fdroid?.facts.antiFeatures ?? []), ...(app.izzy?.facts.antiFeatures ?? [])])];
@@ -315,6 +351,8 @@ export function matchingApps(build: Build, text: string, filters: string[]): App
     else if (key.startsWith("s:")) groups.set("source", [...(groups.get("source") ?? []), (a) => a.sources.has(key.slice(2) as SourceId)]);
     else if (key.startsWith("af:")) strict.push((a) => antiFeaturesOf(a).includes(key.slice(3)));
     else if (key.startsWith("no:")) strict.push((a) => (a.fdroid !== null || a.izzy !== null) && !antiFeaturesOf(a).includes(key.slice(3)));
+    else if (key.startsWith("owner:")) strict.push((a) => ownerToken(a) === key);
+    else if (key.startsWith("license:")) strict.push((a) => licenseTokens(a).includes(key));
     else if (key === "open" || key === "source-available" || key === "closed") {
       const test = FILTER_TESTS[key];
       if (test) groups.set("terms", [...(groups.get("terms") ?? []), test]);
