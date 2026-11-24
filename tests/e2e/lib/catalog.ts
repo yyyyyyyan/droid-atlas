@@ -84,6 +84,7 @@ export interface IndexRecord {
     pkg: string;
     version: string | null;
     antiFeatures: string[];
+    antiFeatureReasons: Record<string, string>;
     declaresShizuku: boolean;
     declaresInternet: boolean;
     updatedAt: string | null;

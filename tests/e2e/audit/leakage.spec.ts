@@ -14,7 +14,7 @@ import { loadBuild, sample } from "../lib/catalog.ts";
 import { SYNTHETIC } from "../lib/pick.ts";
 import { siteDir } from "../site.ts";
 import { SEED, cacheDir } from "./audit-config.ts";
-import { readCache } from "./cache.ts";
+import { readCache, type IndexPackage } from "./cache.ts";
 import { upstreamFiles } from "./upstream.ts";
 
 const build = loadBuild();
@@ -116,6 +116,31 @@ test(`every F-Droid and IzzyOnDroid summary, and 40 description excerpts each (s
   expect(problems).toEqual([]);
 });
 
+/** True when the index itself gives these words as the reason for some anti-feature of some package, in any language. */
+function indexGivesReason(text: string, origin: "fdroid" | "izzy"): boolean {
+  const dir = cacheDir();
+  if (!dir) return false;
+  const index = origin === "fdroid" ? readCache(dir).fdroid : readCache(dir).izzy;
+  return Object.values(index.packages).some((pkg) => Object.values(pkg.versions).some((version) =>
+    Object.values(version.antiFeatures ?? {}).some((reason) => reason !== null && typeof reason === "object" && Object.values(reason).some((own) => typeof own === "string" && own.includes(text)))));
+}
+
+test("every F-Droid and IzzyOnDroid anti-feature reason appears in no other origin's file and not in the site's code, unless that origin gives the same words itself", () => {
+  const problems: string[] = [];
+  let searched = 0;
+  for (const origin of ["fdroid", "izzy"] as const) {
+    const part = origin === "fdroid" ? build.fdroid : build.izzy;
+    const other = origin === "fdroid" ? "izzy" : "fdroid";
+    for (const text of distinctive(Object.values(part.apps).flatMap((record) => Object.values(record.facts.antiFeatureReasons ?? {})))) {
+      searched++;
+      const where = foundIn(text, [origin]).filter((path) => !(originOfPath(path) === other && indexGivesReason(text, other)));
+      if (where.length) problems.push(`${origin} reason “${text.slice(0, 60)}…” found in ${where.join(", ")}`);
+    }
+  }
+  test.info().annotations.push({ type: "reasons searched", description: String(searched) });
+  expect(problems).toEqual([]);
+});
+
 test("a GitHub description is shipped only for apps whose summary it is (LICENSING.md §2.F)", () => {
   const problems = build.apps
     .filter((app) => app.githubDescription !== null)
@@ -130,7 +155,18 @@ test("Android FOSS listing names (seeded) appear only as listing names: the bund
   expect(inCode).toEqual([]);
 });
 
-test(`index text is carried exactly: summaries and description excerpts (40 each, seed ${SEED}) match the cached index`, () => {
+/** The version the pipeline reads facts from: the latest added, then the highest version code. */
+function newestVersion(pkg: IndexPackage): IndexPackage["versions"][string] | null {
+  let best: IndexPackage["versions"][string] | null = null;
+  for (const version of Object.values(pkg.versions)) {
+    const ahead = !best || (version.added ?? 0) > (best.added ?? 0)
+      || ((version.added ?? 0) === (best.added ?? 0) && (version.manifest?.versionCode ?? 0) > (best.manifest?.versionCode ?? 0));
+    if (ahead) best = version;
+  }
+  return best;
+}
+
+test(`index text is carried exactly: summaries, anti-feature reasons and description excerpts (40 each, seed ${SEED}) match the cached index`, () => {
   const dir = cacheDir();
   if (SYNTHETIC) test.skip(!dir, "the synthetic build ships no cache");
   else expect(dir, "the upstream cache").not.toBeNull();
@@ -154,6 +190,21 @@ test(`index text is carried exactly: summaries and description excerpts (40 each
       }
       const summary = english(cached.summary);
       if ((record.summary ?? null) !== (summary?.trim() || null)) problems.push(`${origin} ${id}: summary “${record.summary}” ≠ index “${summary}”`);
+    }
+    const flagged = Object.entries(part.apps).filter(([, record]) => Object.keys(record.facts.antiFeatureReasons ?? {}).length > 0);
+    for (const [id, record] of sample(flagged, 40, SEED)) {
+      const pkg = index.packages[record.facts.pkg];
+      const version = pkg ? newestVersion(pkg) : null;
+      for (const [key, reason] of Object.entries(record.facts.antiFeatureReasons ?? {})) {
+        const stated = version?.antiFeatures?.[key];
+        const full = stated !== null && typeof stated === "object" ? english(stated as Record<string, string>) : null;
+        if (!full) {
+          problems.push(`${origin} ${id}: a reason for ${key} the cached index's latest version does not give`);
+          continue;
+        }
+        const shipped = letters(reason.replace(/…\s*$/, ""));
+        if (!shipped || !letters(full).startsWith(shipped)) problems.push(`${origin} ${id}: reason for ${key} “${reason.slice(0, 60)}” ≠ index “${full.slice(0, 60)}”`);
+      }
     }
     const shards = FILES.filter((f) => f.path.startsWith(`details/${origin}/`));
     const details = shards.flatMap((f) => Object.entries(JSON.parse(f.text) as Record<string, { description: string }>));
