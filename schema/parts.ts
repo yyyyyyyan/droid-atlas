@@ -175,14 +175,32 @@ export interface IconsPart {
   icons: IconRecord[];
 }
 
-export type PartRole = "atlas" | "source" | "index" | "github" | "icons" | "details" | "upstream";
+/** What Android states about one permission it defines: the protection level as written, and the label's English text. */
+export interface AndroidPermission {
+  /** Words joined by "|", a base level first or anywhere ("dangerous|instant"), as Android's manifest writes it. */
+  protectionLevel: string;
+  label: string | null;
+}
+
+/**
+ * Android's own statements about the permissions apps in the catalog
+ * declare, from the platform release named in `android`. Only names some
+ * app's index lists are kept, by name.
+ */
+export interface AndroidPermissionsPart {
+  header: PartHeader;
+  android: { version: string; tag: string; commit: string };
+  permissions: Record<string, AndroidPermission>;
+}
+
+export type PartRole = "atlas" | "source" | "index" | "github" | "android" | "icons" | "details" | "upstream";
 
 export interface ManifestFile {
   /** Path relative to the directory holding the manifest. */
   path: string;
   role: PartRole;
   /** The origin the file's content comes from. */
-  origin: SourceId | "fdroid" | "izzy" | "github" | "droid-atlas";
+  origin: SourceId | "fdroid" | "izzy" | "github" | "android" | "droid-atlas";
   sha256: string;
   bytes: number;
   /** SPDX identifier, or `LicenseRef-per-record`. */
@@ -190,7 +208,7 @@ export interface ManifestFile {
   attribution: string;
 }
 
-/** Lists every file of one build. The app loads the atlas, source, index and github parts at start; the rest on demand. */
+/** Lists every file of one build. The app loads the atlas, source, index, github and android parts at start; the rest on demand. */
 export interface Manifest {
   schema: typeof CATALOG_SCHEMA_VERSION;
   generatedAt: string;

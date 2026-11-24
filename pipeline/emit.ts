@@ -4,6 +4,7 @@
  *   version.json                                the only mutable file, written last
  *   c/<digest>/manifest.json                    every file of the build with sha256 and license
  *   c/<digest>/atlas.json, sources/*.json, icons.json
+ *   c/<digest>/sources/android-permissions.json  Android's statements about the permissions apps declare
  *   c/<digest>/details/<origin>/<n>.json        long text and permission names, one origin per shard
  *   icons/<content-hash>.webp                   written by the icon stage
  *   upstream/<source>/<commit>…                 snapshot of the upstream files used
@@ -33,7 +34,7 @@ import {
   type SourceInfo,
 } from "../schema/catalog.ts";
 import type { CatalogParts } from "../schema/join.ts";
-import type { IconsPart, Manifest, ManifestFile, PartHeader } from "../schema/parts.ts";
+import type { AndroidPermissionsPart, IconsPart, Manifest, ManifestFile, PartHeader } from "../schema/parts.ts";
 import { sha256, stableStringify } from "./lib/hash.ts";
 
 export interface CatalogFields {
@@ -55,22 +56,26 @@ export const SHARD_BUDGET_BYTES = 40_000;
 const DIRECTORY_HASH_LENGTH = 16;
 const BUILD_DIR_RE = /^[0-9a-f]{16}$/;
 
+/** What of the Android part the catalog hash covers: everything but its header. */
+export type AndroidStatements = Omit<AndroidPermissionsPart, "header">;
+
 /**
  * Hash of everything a build publishes except `generatedAt` and the hash
- * itself: the catalog, the details text and the icon records. Part headers
+ * itself: the catalog, the details text, the icon records and Android's
+ * statements. Part headers
  * are excluded because their dates follow `generatedAt`, so two builds of
  * unchanged sources share this hash while their files differ; the directory
  * a build is published in is therefore named by `buildDirectory`, not by this.
  */
-export function catalogHash(fields: CatalogFields, details: DetailsByOrigin, icons: IconsPart["icons"]): string {
-  return sha256(stableStringify({ schema: CATALOG_SCHEMA_VERSION, ...fields, details, icons }));
+export function catalogHash(fields: CatalogFields, details: DetailsByOrigin, icons: IconsPart["icons"], android?: AndroidStatements): string {
+  return sha256(stableStringify({ schema: CATALOG_SCHEMA_VERSION, ...fields, details, icons, android }));
 }
 
-export function assembleCatalog(fields: CatalogFields, details: DetailsByOrigin, icons: IconsPart["icons"], generatedAt: string): Catalog {
+export function assembleCatalog(fields: CatalogFields, details: DetailsByOrigin, icons: IconsPart["icons"], generatedAt: string, android?: AndroidStatements): Catalog {
   return {
     schema: CATALOG_SCHEMA_VERSION,
     generatedAt,
-    hash: catalogHash(fields, details, icons),
+    hash: catalogHash(fields, details, icons, android),
     sources: fields.sources,
     enrichment: fields.enrichment,
     regions: fields.regions,
@@ -141,6 +146,8 @@ export interface BuildFiles {
   catalog: Catalog;
   parts: CatalogParts;
   icons: IconsPart;
+  /** Android's statements about the permissions apps declare; absent from a build made without them. */
+  android: AndroidPermissionsPart | null;
   details: DetailsByOrigin;
   upstream: UpstreamSnapshot[];
   /** SPDX id → license text. */
@@ -205,6 +212,7 @@ export function emit(outDir: string, build: BuildFiles): EmitResult {
     put(`sources/${index.origin}.json`, json(index), { role: "index", origin: index.origin, ...header(index.header) });
   }
   put("sources/github.json", json(parts.github), { role: "github", origin: "github", ...header(parts.github.header) });
+  if (build.android) put("sources/android-permissions.json", json(build.android), { role: "android", origin: "android", ...header(build.android.header) });
   put("icons.json", json(build.icons), { role: "icons", origin: "droid-atlas", ...header(build.icons.header) });
 
   const count = shardCount(build.details);

@@ -63,7 +63,7 @@ test("mirror fetches named icons and license texts, the texts of icon records on
   const icon = new TextEncoder().encode("not really a webp");
   const iconPath = `icons/${sha256(icon).slice(0, 16)}.webp`;
   const atlas = JSON.stringify({ apps: [{ icon: iconPath }, { icon: null }] });
-  const icons = JSON.stringify({ icons: [{ license: "MIT" }, { license: "Proprietary" }, { license: "Apache-2.0 OR GPL-3.0" }] });
+  const icons = JSON.stringify({ icons: [{ license: "MIT" }, { license: "Proprietary" }, { license: "ISC OR GPL-3.0" }] });
   const manifest = {
     hash: "f".repeat(64),
     files: [
@@ -80,15 +80,15 @@ test("mirror fetches named icons and license texts, the texts of icon records on
     "c/0123456789abcdef/sources/x.json": "{}",
     [iconPath]: icon,
     "licenses/MIT.txt": "MIT text",
-    "licenses/Apache-2.0.txt": "Apache text",
+    "licenses/ISC.txt": "ISC text",
     ...Object.fromEntries(HEADER_LICENSES.map((id) => [`licenses/${id}.txt`, `${id} text`])),
   });
   const url = await serve(t, site);
   const out = join(tempDir(t), "data");
   const summary = await mirror(url, out, fast);
-  assert.deepEqual([summary.icons, summary.licenses], [1, new Set([...HEADER_LICENSES, "MIT", "Apache-2.0"]).size], "a record's license is mirrored when the site has its text, and its absence is no error");
+  assert.deepEqual([summary.icons, summary.licenses], [1, new Set([...HEADER_LICENSES, "MIT", "ISC"]).size], "a record's license is mirrored when the site has its text, and its absence is no error");
   assert.equal(readFileSync(join(out, "licenses", "MIT.txt"), "utf8"), "MIT text");
-  assert.equal(readFileSync(join(out, "licenses", "Apache-2.0.txt"), "utf8"), "Apache text");
+  assert.equal(readFileSync(join(out, "licenses", "ISC.txt"), "utf8"), "ISC text");
 
   writeFileSync(join(site, "data", iconPath), "tampered");
   await assert.rejects(mirror(url, out, fast), /does not match the hash in its name/);

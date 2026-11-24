@@ -20,6 +20,7 @@ import { parseArgs } from "node:util";
 import type { Catalog, DownloadSource, SourceCategory, SourceId, SourceInfo } from "../schema/catalog.ts";
 import { deriveAntiFeatures, deriveDownloads, type CatalogParts } from "../schema/join.ts";
 import type { IconsPart } from "../schema/parts.ts";
+import { androidPermissionsPart } from "./android-part.ts";
 import { assembleCatalog, emit, type EmitResult, type UpstreamSnapshot } from "./emit.ts";
 import { fdroidDownloads, GITHUB_DOWNLOAD_SOURCE, izzyDownloads } from "./enrich/downloads.ts";
 import { FDROID, parseFdroidIndex } from "./enrich/fdroid.ts";
@@ -27,6 +28,7 @@ import { githubToken, loadGithub } from "./enrich/github.ts";
 import { IZZY, parseIzzyIndex } from "./enrich/izzy.ts";
 import { buildIcons, DEFAULT_BUDGETS, discoveryTarget, projectOf, readIconPolicy } from "./icons.ts";
 import { githubSlugsFor, identify, readOverrides } from "./identity.ts";
+import { readAndroidTable } from "./lib/android-permissions.ts";
 import { cachedDownload } from "./lib/download.ts";
 import { cloneRetrievedAt, firstSeenDates, headCommit, syncClone } from "./lib/git.ts";
 import { licenseTexts, listedLicenseIds, loadSpdxList } from "./lib/spdx.ts";
@@ -268,6 +270,7 @@ export async function build(argv: string[]): Promise<BuildOutcome> {
     entries: result.entries.length,
     anomalies: result.anomalies,
   }));
+  const { header: androidHeader, ...androidStatements } = androidPermissionsPart(readAndroidTable(), identity.details, generatedAt.slice(0, 10));
   const catalog: Catalog = assembleCatalog(
     {
       sources,
@@ -282,6 +285,7 @@ export async function build(argv: string[]): Promise<BuildOutcome> {
     identity.details,
     icons.records,
     generatedAt,
+    androidStatements,
   );
 
   const headers = partHeaders({
@@ -322,6 +326,7 @@ export async function build(argv: string[]): Promise<BuildOutcome> {
         catalog,
         parts,
         icons: iconsPart,
+        android: { header: androidHeader, ...androidStatements },
         details: identity.details,
         upstream: parsed.map((p) => p.snapshot),
         licenses: licenses.texts,

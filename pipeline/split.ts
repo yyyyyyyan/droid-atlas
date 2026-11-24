@@ -196,4 +196,4 @@ export function partHeaders(input: HeaderInputs): PartHeaders & { icons: PartHea
 }
 
 /** Licenses the part headers and manifest name, which must ship with texts. */
-export const HEADER_LICENSES = ["AGPL-3.0-only", "AGPL-3.0-or-later", "CC-BY-SA-3.0", "CC0-1.0", "GPL-3.0-only"];
+export const HEADER_LICENSES = ["AGPL-3.0-only", "AGPL-3.0-or-later", "Apache-2.0", "CC-BY-SA-3.0", "CC0-1.0", "GPL-3.0-only"];
