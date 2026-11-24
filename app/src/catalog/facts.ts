@@ -554,7 +554,7 @@ export interface FactLine {
   detail: string | null;
   /** What the source says about this entry in particular, shown quoted: an index's reason for an anti-feature. */
   quote: string | null;
-  /** Display names of everyone who states this. Empty for "Unknown", which nobody states, and for a repository's owner in a catalog built before its source was recorded. */
+  /** Display names of everyone who states this. Empty only for "Unknown", which nobody states. */
   sources: string[];
   /** The lists of entries the line leads to, when it leads to any. */
   links?: FactLink[];
@@ -650,23 +650,19 @@ export function licenseLinks(model: Model, value: string): FactLink[] {
   return licenseTerms(value).flatMap((term) => factLink(model, term.key) ?? []);
 }
 
-/** Adds a line that leads to lists. A line with the same words as one already there only adds its sources to it, and leads nowhere new. */
-function stateLinked(model: Model, facts: Fact[], key: string, label: string, value: string, sources: string[], keys: readonly string[]): boolean {
+/** Adds a line, and returns it; null when a line with the same words was already there and only took its sources. */
+function stateLine(facts: Fact[], key: string, label: string, value: string, sources: string[]): FactLine | null {
   const before = facts.find((fact) => fact.key === key)?.lines.length ?? 0;
   state(facts, key, label, "neutral", value, sources);
   const lines = facts.find((fact) => fact.key === key)?.lines ?? [];
-  const line = lines.at(-1);
-  if (lines.length === before || !line) return false;
-  const links = keys.flatMap((token) => factLink(model, token) ?? []);
-  if (links.length > 0) line.links = links;
-  return true;
+  return lines.length > before ? lines.at(-1) ?? null : null;
 }
 
 /**
  * Who states an app's repository, and so its owner: GitHub, when it answered
  * for the repository (its address follows the renames GitHub reports); else
- * whoever the build recorded as giving it (`Evidence.repository`). A catalog
- * built before that was recorded names nobody.
+ * whoever the build recorded as giving it (`Evidence.repository`). None in a
+ * catalog built before that was recorded.
  */
 function repositoryOrigins(app: Entry["app"]): Origin[] {
   if (app.repo?.host === "github" && app.github) return ["github"];
@@ -680,20 +676,26 @@ function repositoryOrigins(app: Entry["app"]): Origin[] {
  * version qualifier adds no line when another source states the same
  * licenses with one: GitHub's "GPL-3.0" says nothing beside an index's
  * "GPL-3.0-only". "GPL-3.0-only" and "GPL-3.0-or-later" are two statements
- * and two lines. Each license leads to its list once, from the first line
- * that names it.
+ * and two lines. Each license leads to its list once: from the line whose
+ * words are the list's name, where one is, else from the first line that
+ * names it.
  */
 function licenseFacts(model: Model, statements: readonly Sourced<string>[], facts: Fact[]): void {
   const licensesOf = (value: string): string => licenseTerms(value).map((term) => term.key).sort().join(" ");
   const qualified = new Set(statements.filter((statement) => !isBareLicense(statement.value)).map((statement) => licensesOf(statement.value)));
-  const linked = new Set<string>();
+  const shown: { line: FactLine; keys: string[] }[] = [];
   for (const statement of statements) {
     const keys = licenseTerms(statement.value).map((term) => term.key);
     if (keys.length > 0 && isBareLicense(statement.value) && qualified.has(licensesOf(statement.value))) continue;
-    const fresh = keys.filter((key) => !linked.has(key));
-    if (stateLinked(model, facts, "license", "License", statement.value, names(model, [statement.origin]), fresh)) {
-      for (const key of fresh) linked.add(key);
-    }
+    const line = stateLine(facts, "license", "License", statement.value, names(model, [statement.origin]));
+    if (line) shown.push({ line, keys });
+  }
+  for (const key of new Set(shown.flatMap((item) => item.keys))) {
+    const link = factLink(model, key);
+    if (!link) continue;
+    const naming = shown.filter((item) => item.keys.includes(key));
+    const home = naming.find((item) => item.line.value.trim().toLowerCase() === link.label.toLowerCase()) ?? naming[0];
+    if (home) home.line.links = [...(home.line.links ?? []), link];
   }
 }
 
@@ -751,8 +753,11 @@ export function factsFor(model: Model, entry: Entry): Fact[] {
   if (app.github?.forkOf) state(facts, "fork", "Fork", "neutral", `Forked from ${app.github.forkOf}`, ["GitHub"]);
   const owner = repositoryOwner(app);
   const group = model.facts().ownerOf(entry);
-  if (owner && group && group.entries.length > 1) {
-    stateLinked(model, facts, "owner", "Repository owner", ownerLabel(owner), names(model, repositoryOrigins(app)), [group.key]);
+  const origins = repositoryOrigins(app);
+  if (owner && group && group.entries.length > 1 && origins.length > 0) {
+    const line = stateLine(facts, "owner", "Repository owner", ownerLabel(owner), names(model, origins));
+    const link = factLink(model, group.key);
+    if (line && link) line.links = [link];
   }
   if (app.evidence.archived.length) state(facts, "archived", "Status", "caution", "Archived", names(model, app.evidence.archived));
   if (app.repoMissing) state(facts, "repo-missing", "Repository", "caution", "No longer exists", ["GitHub"]);
