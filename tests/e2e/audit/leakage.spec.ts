@@ -101,7 +101,7 @@ test(`every F-Droid and IzzyOnDroid summary, and 40 description excerpts each (s
     const part = origin === "fdroid" ? build.fdroid : build.izzy;
     const summaries = distinctive(Object.values(part.apps).map((record) => record.summary));
     const details = FILES.filter((f) => f.path.startsWith(`details/${origin}/`))
-      .flatMap((f) => Object.values(JSON.parse(f.text) as Record<string, { description: string }>).map((d) => d.description.slice(0, 200)));
+      .flatMap((f) => Object.values(JSON.parse(f.text) as Record<string, { description?: string }>).flatMap((d) => (typeof d.description === "string" ? [d.description.slice(0, 200)] : [])));
     for (const text of [...summaries, ...sample(distinctive(details), 40, SEED)]) {
       const where = foundIn(text, ["fdroid", "izzy"]).filter((path) => {
         if (path === "sources/awesome-shizuku.json" || path === "sources/android-foss.json") {
@@ -139,6 +139,16 @@ test("every F-Droid and IzzyOnDroid anti-feature reason appears in no other orig
   }
   test.info().annotations.push({ type: "reasons searched", description: String(searched) });
   expect(problems).toEqual([]);
+});
+
+test("Android's labels are in Android's part alone: none is in the site's code", () => {
+  const part = build.manifest.files.find((file) => file.role === "android");
+  test.skip(!part, "the build has no android part");
+  const statements = JSON.parse(readFileSync(join(build.dir, part?.path ?? ""), "utf8")) as { permissions: Record<string, { label: string | null }> };
+  const labels = [...new Set(Object.values(statements.permissions).map((statement) => statement.label).filter((label): label is string => label !== null && label.length >= 12))];
+  test.info().annotations.push({ type: "labels searched", description: String(labels.length) });
+  expect(labels.length).toBeGreaterThan(0);
+  expect(labels.filter((label) => CODE.some((file) => file.text.includes(label) || file.text.includes(json(label))))).toEqual([]);
 });
 
 test("a GitHub description is shipped only for apps whose summary it is (LICENSING.md §2.F)", () => {
@@ -207,7 +217,8 @@ test(`index text is carried exactly: summaries, anti-feature reasons and descrip
       }
     }
     const shards = FILES.filter((f) => f.path.startsWith(`details/${origin}/`));
-    const details = shards.flatMap((f) => Object.entries(JSON.parse(f.text) as Record<string, { description: string }>));
+    const details = shards.flatMap((f) => Object.entries(JSON.parse(f.text) as Record<string, { description?: string }>))
+      .flatMap(([id, entry]): [string, { description: string }][] => (typeof entry.description === "string" ? [[id, { description: entry.description }]] : []));
     for (const [id, detail] of sample(details, 40, SEED)) {
       const pkg = part.apps[id]?.facts.pkg;
       const full = pkg ? english(index.packages[pkg]?.metadata.description) : null;

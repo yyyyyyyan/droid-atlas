@@ -85,6 +85,7 @@ export interface IndexRecord {
     version: string | null;
     antiFeatures: string[];
     antiFeatureReasons: Record<string, string>;
+    permissionCount: number;
     declaresShizuku: boolean;
     declaresInternet: boolean;
     updatedAt: string | null;
@@ -253,8 +254,10 @@ export function descriptionsOf(build: Build, appId: string): string[] {
   if (!byApp) {
     byApp = new Map();
     for (const file of build.manifest.files.filter((f) => f.role === "details")) {
-      const shard = readJson<Record<string, { description: string }>>(join(build.dir, file.path));
-      for (const [id, entry] of Object.entries(shard)) byApp.set(id, [...(byApp.get(id) ?? []), entry.description]);
+      const shard = readJson<Record<string, { description?: string }>>(join(build.dir, file.path));
+      for (const [id, entry] of Object.entries(shard)) {
+        if (typeof entry.description === "string") byApp.set(id, [...(byApp.get(id) ?? []), entry.description]);
+      }
     }
     descriptionsByBuild.set(build, byApp);
   }
@@ -447,4 +450,31 @@ export function sample<T>(items: readonly T[], count: number, seed: number): T[]
     picked.push(pool.splice(index, 1)[0] as T);
   }
   return picked;
+}
+
+/** What one index's details shards hold for an app: its long description and its permission names, where there are any. */
+export function detailsOf(build: Build, appId: string, origin: "fdroid" | "izzy"): { description?: string; permissions?: string[] } {
+  for (const file of build.manifest.files) {
+    if (file.role !== "details" || file.origin !== origin) continue;
+    const shard = readJson<Record<string, { description?: string; permissions?: string[] }>>(join(build.dir, file.path));
+    if (Object.hasOwn(shard, appId)) return shard[appId] ?? {};
+  }
+  return {};
+}
+
+/** The permission names one index lists for an app, read from that index's details shards; empty when it lists none. */
+export function permissionNamesOf(build: Build, appId: string, origin: "fdroid" | "izzy"): string[] {
+  return detailsOf(build, appId, origin).permissions ?? [];
+}
+
+/** Android's statements about the permissions apps declare, as the build's android part carries them. */
+export interface AndroidPart {
+  android: { version: string; tag: string; commit: string };
+  permissions: Record<string, { protectionLevel: string; label: string | null }>;
+}
+
+/** The build's android part; null when it has none. */
+export function androidPartOf(build: Build): AndroidPart | null {
+  const file = build.manifest.files.find((f) => f.role === "android");
+  return file ? readJson<AndroidPart>(join(build.dir, file.path)) : null;
 }
