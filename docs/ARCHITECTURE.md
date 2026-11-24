@@ -464,19 +464,23 @@ version 3 of the GPL, which is all the chip says, whereas a token per spelling
 would split one license by how a source happens to write it. A statement of
 several licenses is read term by term, without parentheses, each term folded
 on its own: "A OR B" and "A / B" offer a choice and "A AND B" applies both, so
-each names A and B; "A WITH E" names A, since an exception only adds
-permissions and is not a license. A statement that there is no license
-("Proprietary", "No license") has no token: it is a list's wording for a
-closed app, and "Closed source" in the panel already asks that question, from
-every source that states it.
+each names A and B; "A WITH E" names A, since an SPDX exception only adds
+permissions and is not a license. Only SPDX's capitals are operators: in
+"Apache 2.0 with Commons Clause" the small words are part of what the source
+calls its license, which is then a license of its own. A statement that there
+is no license ("Proprietary", "No license") has no token, and nor does a
+statement with such a term in it ("Proprietary AND MIT"): it is a list's
+wording for a closed app, and "Closed source" in the panel already asks that
+question, from every source that states it.
 
 In an app's details, the License row has a line for each statement, in the
 source's own words and credited to it; sources that use the same words share
 a line. A statement without a version qualifier adds no line beside another
 that states the same licenses with one: GitHub's "GPL-3.0" says nothing next
 to an index's "GPL-3.0-only". "GPL-3.0-only" and "GPL-3.0-or-later" are two
-statements and two lines. Each license's list is linked once, from the first
-line that names it, by the list's own name and the number of entries in it
+statements and two lines. Each license's list is linked once, from the line
+whose words are the list's name where there is one, else from the first line
+that names it, by the list's own name and the number of entries in it
 ("GPL-3.0 642"); where the source's words are that name ("MIT"), they are the
 link. The license in a list's own entry, under Sources and credits, is shown
 the same way.
@@ -487,7 +491,8 @@ and says how many more there are. Its source is GitHub when GitHub answered
 for the repository; otherwise whoever the build recorded as giving it
 (`Evidence.repository`): the lists whose entry links it, by its source-code
 link or its main link, else the index whose source-code field it was read
-from. A catalog built before that was recorded names no source for it. An app
+from. A catalog built before that was recorded does not say, so it shows no
+such row; the next build does. An app
 without a repository on a named forge, or whose owner has no other entry, has
 no such row.
 
