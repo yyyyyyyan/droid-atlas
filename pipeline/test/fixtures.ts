@@ -9,6 +9,13 @@ import type { IndexData } from "../enrich/index-v2.ts";
 import { parseIndex } from "../enrich/index-v2.ts";
 import type { SourceEntry } from "../sources/types.ts";
 
+/** A permission as a manifest declares it: its name alone, or with a `maxSdkVersion` of any shape. */
+export type Declared = string | { name: string; maxSdkVersion: unknown };
+
+function declaration(item: Declared): { name: string; maxSdkVersion?: unknown } {
+  return typeof item === "string" ? { name: item } : item;
+}
+
 export interface FakePackage {
   name?: string;
   summary?: string;
@@ -17,12 +24,13 @@ export interface FakePackage {
   sourceCode?: string;
   webSite?: string;
   author?: string;
-  permissions?: string[];
+  /** Permissions in the manifest's `usesPermission` list: a name, or a declaration with its `maxSdkVersion`. */
+  permissions?: Declared[];
   antiFeatures?: string[];
   /** The index's reason for an anti-feature of the latest version, by key, as a localized map. */
   reasons?: Record<string, unknown>;
-  /** Permissions in the manifest's `usesPermissionSdk23` list. */
-  permissionsSdk23?: string[];
+  /** Permissions in the manifest's `usesPermissionSdk23` list, as `permissions`. */
+  permissionsSdk23?: Declared[];
   /** Anti-features on an older version only. */
   oldAntiFeatures?: string[];
   /** The older version's reason for an anti-feature, by key, as a localized map. */
@@ -63,8 +71,8 @@ export function fakeIndexJson(packages: Record<string, FakePackage>, timestamp =
             versionName: p.versionName ?? "1.0",
             versionCode: 2,
             usesSdk: { minSdkVersion: 24, targetSdkVersion: 35 },
-            usesPermission: (p.permissions ?? []).map((name) => ({ name })),
-            usesPermissionSdk23: (p.permissionsSdk23 ?? []).map((name) => ({ name })),
+            usesPermission: (p.permissions ?? []).map(declaration),
+            usesPermissionSdk23: (p.permissionsSdk23 ?? []).map(declaration),
           },
           antiFeatures: Object.fromEntries((p.antiFeatures ?? []).map((a) => [a, p.reasons?.[a] ?? {}])),
         },

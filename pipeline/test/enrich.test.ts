@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { batchQuery, fetchGithub, repoFromNode, type Fetch } from "../enrich/github.ts";
-import { ANTI_FEATURE_REASON_LIMIT, PERMISSION_NAMES_LIMIT, SHIZUKU_PERMISSION, SUMMARY_LIMIT } from "../enrich/index-v2.ts";
+import { ANTI_FEATURE_REASON_LIMIT, MAX_SDK_LIMIT, PERMISSION_NAMES_LIMIT, SHIZUKU_PERMISSION, SUMMARY_LIMIT } from "../enrich/index-v2.ts";
 import { fakeIndex } from "./fixtures.ts";
 
 test("an index record takes facts from the latest version and anti-features from all of them", () => {
@@ -30,18 +30,56 @@ test("an index record takes facts from the latest version and anti-features from
   assert.equal(index.timestamp, "2023-11-14T22:13:20.000Z");
 });
 
-test("an index record keeps the permission names it counts, sorted and without repeats", () => {
+test("an index record keeps the permission names both manifest elements declare, sorted and without repeats, and counts them all", () => {
   const index = fakeIndex("fdroid", {
     "org.example.perm": {
       permissions: ["org.example.perm.permission.C2D", "android.permission.INTERNET", "android.permission.CAMERA ", "android.permission.CAMERA"],
-      permissionsSdk23: ["android.permission.READ_CONTACTS"],
+      permissionsSdk23: ["android.permission.READ_CONTACTS", "android.permission.CAMERA"],
     },
     "org.example.none": {},
   });
   const record = index.packages.get("org.example.perm");
-  assert.deepEqual(record?.permissions, ["android.permission.CAMERA", "android.permission.INTERNET", "org.example.perm.permission.C2D"]);
-  assert.equal(record?.facts.permissionCount, 3);
+  assert.deepEqual(record?.permissions, ["android.permission.CAMERA", "android.permission.INTERNET", "android.permission.READ_CONTACTS", "org.example.perm.permission.C2D"]);
+  assert.equal(record?.facts.permissionCount, 4);
+  assert.deepEqual(record?.permissionCaps, {});
   assert.deepEqual(index.packages.get("org.example.none")?.permissions, []);
+});
+
+test("internet access and Shizuku's permission count when only uses-permission-sdk-23 declares them", () => {
+  const index = fakeIndex("izzy", { "org.example.sdk23": { permissionsSdk23: ["android.permission.INTERNET", SHIZUKU_PERMISSION] } });
+  const facts = index.packages.get("org.example.sdk23")?.facts;
+  assert.equal(facts?.declaresInternet, true);
+  assert.equal(facts?.declaresShizuku, true);
+  assert.equal(facts?.permissionCount, 2);
+});
+
+test("a name declared only up to an API level keeps its cap, and the widest declaration of a name wins", () => {
+  const index = fakeIndex("fdroid", {
+    "org.example.caps": {
+      permissions: [
+        { name: "android.permission.READ_EXTERNAL_STORAGE", maxSdkVersion: 18 },
+        { name: "android.permission.WRITE_EXTERNAL_STORAGE", maxSdkVersion: 18 },
+        { name: "android.permission.WRITE_EXTERNAL_STORAGE", maxSdkVersion: 28 },
+        { name: "android.permission.BLUETOOTH", maxSdkVersion: 30 },
+        "android.permission.BLUETOOTH",
+        { name: "android.permission.ODD_CAP", maxSdkVersion: "18" },
+        { name: "android.permission.HUGE_CAP", maxSdkVersion: 100_000 },
+        { name: "android.permission.ZERO_CAP", maxSdkVersion: 0 },
+      ],
+      permissionsSdk23: [
+        { name: "android.permission.ACCESS_FINE_LOCATION", maxSdkVersion: 30 },
+        { name: "android.permission.READ_EXTERNAL_STORAGE", maxSdkVersion: 32 },
+      ],
+    },
+  });
+  const record = index.packages.get("org.example.caps");
+  assert.deepEqual(record?.permissionCaps, {
+    "android.permission.ACCESS_FINE_LOCATION": 30,
+    "android.permission.READ_EXTERNAL_STORAGE": 32,
+    "android.permission.WRITE_EXTERNAL_STORAGE": 28,
+  }, "uncapped beats capped (BLUETOOTH), the highest cap beats a lower one across both elements, and a cap that is not a whole number from 1 to the limit is not read");
+  assert.equal(record?.facts.permissionCount, 7);
+  assert.equal(MAX_SDK_LIMIT, 1000);
 });
 
 test("a permission name too long or with spaces or control characters is not shown, and the count is unchanged", () => {

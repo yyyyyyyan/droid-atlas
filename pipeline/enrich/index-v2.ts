@@ -32,8 +32,14 @@ export interface IndexRecord {
   iconSha256: string | null;
   /** Anti-features flagged on any version of the package, not only the latest. */
   allAntiFeatures: string[];
-  /** The latest version's permission names that `facts.permissionCount` counts, sorted, minus any that fail `PERMISSION_NAME_RE` and any past `PERMISSION_NAMES_LIMIT`. */
+  /**
+   * The latest version's permission names that `facts.permissionCount`
+   * counts, from both `uses-permission` and `uses-permission-sdk-23`, sorted,
+   * minus any that fail `PERMISSION_NAME_RE` and any past `PERMISSION_NAMES_LIMIT`.
+   */
   permissions: string[];
+  /** For each kept name that every declaration caps with `maxSdkVersion`, the highest cap. A name declared once without a cap has none. */
+  permissionCaps: Record<string, number>;
   facts: IndexFacts;
 }
 
@@ -120,6 +126,32 @@ const PERMISSION_NAME_RE = /^[\x21-\x7e]{1,255}$/;
  */
 export const PERMISSION_NAMES_LIMIT = 500;
 
+/** Highest `maxSdkVersion` read; a cap that is not a whole number from 1 to this is not read, and the declaration counts as uncapped. */
+export const MAX_SDK_LIMIT = 1000;
+
+/**
+ * Every permission the manifest declares, in `uses-permission` and in
+ * `uses-permission-sdk-23`, by name, with the widest cap any declaration of
+ * it gives: none when one declaration has no `maxSdkVersion`, else the highest.
+ */
+function declaredPermissions(manifest: Json): Map<string, number | null> {
+  const declared = new Map<string, number | null>();
+  for (const key of ["usesPermission", "usesPermissionSdk23"]) {
+    const list = manifest[key];
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const element = object(item);
+      const name = string(element?.["name"]);
+      if (name === null) continue;
+      const raw = int(element?.["maxSdkVersion"]);
+      const cap = raw !== null && raw >= 1 && raw <= MAX_SDK_LIMIT ? raw : null;
+      const before = declared.get(name);
+      declared.set(name, before === undefined ? cap : before === null || cap === null ? null : Math.max(before, cap));
+    }
+  }
+  return declared;
+}
+
 /** Longest anti-feature reason kept, in characters; a longer one is cut at a word and ends with an ellipsis. */
 export const ANTI_FEATURE_REASON_LIMIT = 600;
 
@@ -159,9 +191,8 @@ function record(origin: IndexOrigin, indexAt: string, repoBase: string, pkg: str
   const latest = latestVersion(object(raw["versions"]));
   const manifest = object(latest?.["manifest"]) ?? {};
   const usesSdk = object(manifest["usesSdk"]) ?? {};
-  const permissions = Array.isArray(manifest["usesPermission"])
-    ? manifest["usesPermission"].map((p) => string(object(p)?.["name"])).filter((p): p is string => p !== null)
-    : [];
+  const declared = declaredPermissions(manifest);
+  const kept = [...declared.keys()].filter((name) => PERMISSION_NAME_RE.test(name)).sort().slice(0, PERMISSION_NAMES_LIMIT);
   const flags = object(latest?.["antiFeatures"]);
   const antiFeatures = Object.keys(flags ?? {}).filter((key) => ANTI_FEATURE_KEY_RE.test(key)).sort();
   const icon = localizedFile(meta["icon"]);
@@ -182,7 +213,11 @@ function record(origin: IndexOrigin, indexAt: string, repoBase: string, pkg: str
     iconUrl: iconName && iconName.startsWith("/") ? httpUrl(repoBase + iconName) : null,
     iconSha256: iconSha && /^[0-9a-f]{64}$/.test(iconSha) ? iconSha : null,
     allAntiFeatures: allAntiFeatures(object(raw["versions"])),
-    permissions: [...new Set(permissions)].filter((name) => PERMISSION_NAME_RE.test(name)).sort().slice(0, PERMISSION_NAMES_LIMIT),
+    permissions: kept,
+    permissionCaps: Object.fromEntries(kept.flatMap((name) => {
+      const cap = declared.get(name);
+      return typeof cap === "number" ? [[name, cap]] : [];
+    })),
     facts: {
       origin,
       pkg,
@@ -195,9 +230,9 @@ function record(origin: IndexOrigin, indexAt: string, repoBase: string, pkg: str
       author: string(meta["authorName"]),
       antiFeatures,
       antiFeatureReasons: antiFeatureReasons(flags, antiFeatures),
-      permissionCount: new Set(permissions).size,
-      declaresShizuku: permissions.includes(SHIZUKU_PERMISSION),
-      declaresInternet: permissions.includes(INTERNET_PERMISSION),
+      permissionCount: declared.size,
+      declaresShizuku: declared.has(SHIZUKU_PERMISSION),
+      declaresInternet: declared.has(INTERNET_PERMISSION),
     },
   };
 }

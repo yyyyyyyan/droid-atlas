@@ -656,8 +656,8 @@ interface Built {
   statements: AppStatements;
   /** Long description from the app's first index, for that origin's details shards. */
   description: { origin: "fdroid" | "izzy"; text: string } | null;
-  /** Each index's permission names for the app, where it states any. */
-  permissions: Partial<Record<"fdroid" | "izzy", string[]>>;
+  /** Each index's permission names for the app, with the caps of those it declares only up to an API level, where it states any. */
+  permissions: Partial<Record<"fdroid" | "izzy", { names: string[]; caps: Record<string, number> }>>;
   iconSources: IndexRecord[];
   githubRepo: GithubRepo | null;
   candidate: IdCandidate;
@@ -819,8 +819,8 @@ function buildApp(members: Resolved[], input: IdentityInput, categoryOrder: Map<
     uniqueKey: `${first.entry.source} ${first.entry.category} ${normalizeUrl(first.entry.url)} ${first.entry.name}`,
   };
   const permissions: Built["permissions"] = {};
-  if (f?.permissions.length) permissions.fdroid = f.permissions;
-  if (z?.permissions.length) permissions.izzy = z.permissions;
+  if (f?.permissions.length) permissions.fdroid = { names: f.permissions, caps: f.permissionCaps };
+  if (z?.permissions.length) permissions.izzy = { names: z.permissions, caps: z.permissionCaps };
   return { app, members: sorted, statements, description, permissions, iconSources: [f, z].filter((r): r is IndexRecord => r !== null && r !== undefined && r.iconUrl !== null), githubRepo: github ? githubRepo : null, candidate };
 }
 
@@ -912,8 +912,11 @@ export function identify(input: IdentityInput): IdentityResult {
     if (b.githubRepo) githubRepos.set(b.app.id, b.githubRepo);
     if (b.description) details[b.description.origin][b.app.id] = { description: b.description.text };
     for (const origin of ["fdroid", "izzy"] as const) {
-      const names = b.permissions[origin];
-      if (names) details[origin][b.app.id] = { ...details[origin][b.app.id], permissions: names };
+      const declared = b.permissions[origin];
+      if (!declared) continue;
+      const entry: DetailsEntry = { ...details[origin][b.app.id], permissions: declared.names };
+      if (Object.keys(declared.caps).length > 0) entry.permissionCaps = declared.caps;
+      details[origin][b.app.id] = entry;
     }
     if (b.iconSources.length) iconSources.set(b.app.id, b.iconSources);
     statements.set(b.app.id, b.statements);

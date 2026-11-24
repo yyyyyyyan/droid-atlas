@@ -261,7 +261,7 @@ export interface IndexFacts {
    * English and plain text; a key the index gives no reason for has no entry.
    */
   antiFeatureReasons: Record<string, string>;
-  /** Distinct permission names in the latest version's manifest; the names are in this index's details shards. */
+  /** Distinct permission names in the latest version's manifest, `uses-permission` and `uses-permission-sdk-23` both; the names are in this index's details shards. */
   permissionCount: number;
   declaresShizuku: boolean;
   declaresInternet: boolean;
@@ -419,6 +419,8 @@ export function detailsShard(id: string, shards: number): number {
 export interface DetailsEntry {
   description?: string;
   permissions?: string[];
+  /** For a name in `permissions` declared only with `maxSdkVersion`, the highest API level it is declared for. */
+  permissionCaps?: Record<string, number>;
 }
 
 /** One details shard, keyed by app id. Everything in a shard comes from one origin. */

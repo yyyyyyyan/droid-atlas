@@ -250,8 +250,13 @@ const INDEX_ICONS = {
   },
 };
 
+/** A permission declaration: a name, or `[name, maxSdkVersion]`. */
+function declaration(permission) {
+  return Array.isArray(permission) ? { name: permission[0], maxSdkVersion: permission[1] } : { name: permission };
+}
+
 /** Hand-written index-v2 records in the shape `pipeline/enrich/index-v2.ts` reads. */
-function indexPackage({ name, summary, description, license, sourceCode, permissions = [], antiFeatures = [], reasons = {}, icon = null }) {
+function indexPackage({ name, summary, description, license, sourceCode, permissions = [], permissionsSdk23 = [], antiFeatures = [], reasons = {}, icon = null }) {
   return {
     metadata: {
       name: { "en-US": name },
@@ -272,7 +277,8 @@ function indexPackage({ name, summary, description, license, sourceCode, permiss
           versionName: "1.0.0",
           versionCode: 1,
           usesSdk: { minSdkVersion: 26, targetSdkVersion: 36 },
-          usesPermission: permissions.map((permission) => ({ name: permission })),
+          usesPermission: permissions.map(declaration),
+          usesPermissionSdk23: permissionsSdk23.map(declaration),
         },
         antiFeatures: Object.fromEntries(antiFeatures.map((feature) => [feature, reasons[feature] ?? {}])),
       },
@@ -303,7 +309,8 @@ const FDROID_PACKAGES = {
     description: "An invented browser with an invented anti-feature.",
     license: "MPL-2.0",
     sourceCode: "https://github.com/fixture-org/fixture-browser",
-    permissions: ["android.permission.INTERNET", "org.fixture.browser.permission.SYNC"],
+    permissions: ["android.permission.INTERNET", "org.fixture.browser.permission.SYNC", ["android.permission.WRITE_EXTERNAL_STORAGE", 18], "android.permission.SYSTEM_ALERT_WINDOW"],
+    permissionsSdk23: ["android.permission.POST_NOTIFICATIONS"],
     antiFeatures: ["NonFreeNet"],
     reasons: { NonFreeNet: { "en-US": "Synthetic reason for CI: loads invented pages from an invented service." } },
     icon: INDEX_ICONS.fdroid["org.fixture.browser"],

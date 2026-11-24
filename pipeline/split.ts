@@ -161,7 +161,7 @@ export function partHeaders(input: HeaderInputs): PartHeaders & { icons: PartHea
     license: "LicenseRef-per-record",
     licenseUrl: null,
     attribution: `${name} (${url}). Index data is from ${dataSource} under ${dataLicense}; each summary and description is the app's own text under the license in its record, and may also be under ${dataLicense}.${figures(origin).attribution}`,
-    changes: `Extracted by Droid Atlas on ${input.date}: only the apps Droid Atlas lists; HTML reduced to plain text; descriptions longer than 4000 characters cut to an excerpt ending in “…” (full text at the source); summaries longer than 600 characters cut the same way; permission lists reduced to a count, booleans and at most 500 distinct names in alphabetical order; anti-feature reasons kept in English only, Markdown reduced to plain text, any longer than 600 characters cut to an excerpt ending in “…”.${figures(origin).changes}`,
+    changes: `Extracted by Droid Atlas on ${input.date}: only the apps Droid Atlas lists; HTML reduced to plain text; descriptions longer than 4000 characters cut to an excerpt ending in “…” (full text at the source); summaries longer than 600 characters cut the same way; permission lists (uses-permission and uses-permission-sdk-23) reduced to a count, booleans and at most 500 distinct names in alphabetical order, each with the highest maxSdkVersion it is declared with when every declaration of it has one; anti-feature reasons kept in English only, Markdown reduced to plain text, any longer than 600 characters cut to an excerpt ending in “…”.${figures(origin).changes}`,
     warranty: WARRANTY,
   });
   return {
