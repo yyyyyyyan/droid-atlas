@@ -379,11 +379,25 @@ test.describe("a label that does not fit gives way whole", () => {
       await expect(facts).toBeAttached();
       const lines = await facts.evaluate((list) => [...list.querySelectorAll<HTMLElement>(".fact-line.has-source")].map((line) => {
         const value = line.querySelector<HTMLElement>(".fact-value span[dir]");
-        const words = document.createRange();
-        if (value) words.selectNodeContents(value);
+        /* A value's lines are its text's lines: text boxes that overlap in height sit on one line, whatever their size (a link and its smaller count), and a padded link's own box is not text. */
+        const rows: { top: number; bottom: number }[] = [];
+        const walker = document.createTreeWalker(value ?? document.createElement("span"), NodeFilter.SHOW_TEXT);
+        const boxes: DOMRect[] = [];
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const words = document.createRange();
+          words.selectNodeContents(node);
+          boxes.push(...words.getClientRects());
+        }
+        for (const box of boxes.sort((a, b) => a.top - b.top)) {
+          const row = rows.find((known) => box.top < known.bottom && known.top < box.bottom);
+          if (row) {
+            row.top = Math.min(row.top, box.top);
+            row.bottom = Math.max(row.bottom, box.bottom);
+          } else rows.push({ top: box.top, bottom: box.bottom });
+        }
         return {
           value: value?.textContent ?? "",
-          lines: value ? new Set([...words.getClientRects()].map((rect) => Math.round(rect.top))).size : 0,
+          lines: rows.length,
           brokenSources: [...line.querySelectorAll(".fact-source .whole")].filter((name) => name.getClientRects().length > 1).map((name) => name.textContent ?? ""),
         };
       }));
