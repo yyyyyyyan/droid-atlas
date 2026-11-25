@@ -56,6 +56,19 @@ async function settle(page: Page): Promise<void> {
   await page.waitForTimeout(450);
 }
 
+/**
+ * Taps a control of the open sheet where it rests. While the sheet still
+ * rises into place its controls are lower than they will be when the tap
+ * lands, so the point is taken only once the sheet has no motion running.
+ */
+async function tapInSheet(page: Page, control: Locator): Promise<void> {
+  await page.waitForFunction(() => {
+    const open = document.querySelector("dialog[open]");
+    return open !== null && open.getAnimations().every((animation) => animation.playState !== "running");
+  });
+  await tap(page, await center(control));
+}
+
 interface Beneath { list: HistorySnapshot; firstRow: string | null }
 
 /** Enters the largest region from Explore by taps, scrolls its list, and returns what the list looked like. */
@@ -225,6 +238,7 @@ test.describe("the app sheet", () => {
       .filter((app) => app.atlas.icon && app.listings.some((listing) => listing.kind === "app") && app.atlas.category)
       .sort((a, b) => a.id.localeCompare(b.id));
     let next: string | null = null;
+    let start = "";
     for (const first of candidates.slice(0, 8)) {
       if (!first.atlas.icon) continue;
       await page.unrouteAll();
@@ -236,23 +250,26 @@ test.describe("the app sheet", () => {
       const after = ids[ids.indexOf(first.id) + 1];
       if (ids.includes(first.id) && after && hasIcon.has(after)) {
         next = after;
+        start = first.id;
         break;
       }
     }
     requireShape(next !== null, "an app whose next result has an icon");
     if (next === null) return;
     await expect(sheet(page).locator(".sheet-head .ico"), "the first app's own icon cannot be had").toHaveClass(/is-mono/, { timeout: 8000 });
-    await tap(page, await center(sheet(page).getByRole("button", { name: "Next result" })));
+    await tapInSheet(page, sheet(page).getByRole("button", { name: "Next result" }));
+    await expect.poll(() => new URL(page.url()).hash, { message: "the sheet steps to the next result" }).toContain(`app=${next}`);
     await expect(sheet(page).locator(".sheet-head .ico"), "the next app seen once, so its details are at hand on the way back").toHaveClass(/has-img/, { timeout: 8000 });
-    await tap(page, await center(sheet(page).getByRole("button", { name: "Previous result" })));
+    await tapInSheet(page, sheet(page).getByRole("button", { name: "Previous result" }));
+    await expect.poll(() => new URL(page.url()).hash, { message: "the sheet steps back to the first app" }).toContain(`app=${start}`);
     await expect(sheet(page).locator(".sheet-head .ico"), "the first app again, still without its icon").toHaveClass(/is-mono/, { timeout: 8000 });
     const more = sheet(page).getByRole("button", { name: "Read more" });
     if (await more.count()) await more.first().click();
     await page.evaluate(() => document.querySelector("dialog[open] [data-sheet-scroll]")?.scrollTo(0, 400));
     await page.waitForTimeout(100);
 
-    await tap(page, await center(sheet(page).getByRole("button", { name: "Next result" })));
-    await expect.poll(() => new URL(page.url()).hash, { message: "the sheet steps to the next result" }).toContain(`app=${next}`);
+    await tapInSheet(page, sheet(page).getByRole("button", { name: "Next result" }));
+    await expect.poll(() => new URL(page.url()).hash, { message: "the sheet steps to the next result again" }).toContain(`app=${next}`);
     await expect(sheet(page).locator(".sheet-head .ico"), "the next app's icon, not the last one's failure").toHaveClass(/has-img/, { timeout: 8000 });
     await expect(sheet(page).getByRole("button", { name: "Show less" }), "Read more starts closed").toHaveCount(0);
     expect(await contentScroll(page), "and the content at its top").toBe(0);
