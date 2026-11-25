@@ -92,6 +92,7 @@ const ANDROID_FOSS_HISTORY = [
       "### • Browser",
       "",
       "* [**Fixture Browser**](https://github.com/fixture-org/fixture-browser) [[F-Droid](https://f-droid.org/packages/org.fixture.browser/)]",
+      "* [**Fixture Lite Browser**](https://codeberg.org/fixture/lite-browser) [[F-Droid](https://f-droid.org/packages/org.fixture.lite/)]",
       "",
       "### • Keyboard",
       "",
@@ -244,6 +245,7 @@ const INDEX_ICONS = {
   fdroid: {
     "org.fixture.store": { path: "/org.fixture.store/en-US/icon_fixture.png", bytes: fixtureIcon(256, [40, 90, 200]) },
     "org.fixture.browser": { path: "/org.fixture.browser/en-US/icon_fixture.png", bytes: fixtureIcon(512, [230, 120, 20]) },
+    "org.fixture.lite": { path: "/org.fixture.lite/en-US/icon_fixture.png", bytes: fixtureIcon(192, [120, 60, 180]) },
   },
   izzy: {
     "org.fixture.notes": { path: "/org.fixture.notes/en-US/icon_fixture.png", bytes: fixtureIcon(192, [30, 160, 90]) },
@@ -314,6 +316,15 @@ const FDROID_PACKAGES = {
     antiFeatures: ["NonFreeNet"],
     reasons: { NonFreeNet: { "en-US": "Synthetic reason for CI: loads invented pages from an invented service." } },
     icon: INDEX_ICONS.fdroid["org.fixture.browser"],
+  }),
+  "org.fixture.lite": indexPackage({
+    name: "Fixture Lite Browser",
+    summary: "Invented second browser used by the CI fixture",
+    description: "An invented browser listed beside the other one, so two neighbors in one list both have an icon.",
+    license: "GPL-3.0-or-later",
+    sourceCode: "https://codeberg.org/fixture/lite-browser",
+    permissions: ["android.permission.INTERNET"],
+    icon: INDEX_ICONS.fdroid["org.fixture.lite"],
   }),
 };
 
