@@ -212,13 +212,10 @@
 
   "org.joinmastodon.android": { "category": "social-forums", "reason": "The Mastodon app; Android FOSS files it under Messaging, and other Mastodon clients sit here." },
   "github-lucasggamerm-moshidon": { "category": "social-forums", "reason": "A Mastodon client; Android FOSS files it under Messaging." },
-  "github-sk22-megalodon": { "category": "social-forums", "reason": "A Mastodon client; Android FOSS files it under Messaging." },
 
   "com.kitsumed.shizucallrecorder": { "category": "calls-contacts", "reason": "Records phone calls." },
   "github-foxlape-ghostmode": { "category": "calls-contacts", "reason": "Makes the phone look unavailable for incoming calls." },
   "github-lyosu-cally": { "category": "calls-contacts", "reason": "A call recorder." },
-  "github-madkongo-callvault": { "category": "calls-contacts", "reason": "A call recorder." },
-  "github-user-grinch-rivophone": { "category": "calls-contacts", "reason": "A dialer and contacts app." },
   "awesome-shizuku-call-recorder-skvalex": { "category": "calls-contacts", "reason": "A call recorder; awesome-shizuku files it under Audio." },
 
   "github-mihonapp-mihon": { "category": "anime-manga", "reason": "A manga reader." },

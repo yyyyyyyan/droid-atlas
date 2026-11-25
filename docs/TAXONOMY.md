@@ -5,8 +5,8 @@ regions. The sources' categories are what the sources say; they stay on each
 listing and are shown in the app sheet as the source's wording. This page is
 generated from the build by `pipeline/scripts/taxonomy-doc.ts`; the table
 itself is `pipeline/taxonomy.ts` and the placements are
-`pipeline/placements.json`. Build of 2026-11-18: 1,298 entries,
-116 categories, 139 upstream categories, 248 placements.
+`pipeline/placements.json`. Build of 2026-11-25: 1,293 entries,
+116 categories, 139 upstream categories, 245 placements.
 
 ## How an app is filed
 
@@ -46,11 +46,11 @@ every other app in them was placed by hand.
 | Android FOSS: Utilities | 38 | Other System Tools | Android FOSS's own catch-all: a link organizer beside a VNC client, an OCR app and a counter. |
 | Android FOSS: Games › Miscellaneous | 16 | Other Games | Games of every genre that fit no other heading. |
 | Android FOSS: Tools | 9 | Developer Tools | Desktop tools for taking APKs apart, a debloater, a site checker and Shizuku itself. |
-| awesome-shizuku: Communication | 15 | Other Communication Apps | Link redirectors, call recorders, Discord mod managers, clipboard and file sharing. |
+| awesome-shizuku: Communication | 13 | Other Communication Apps | Link redirectors, call recorders, Discord mod managers, clipboard and file sharing. |
 | awesome-shizuku: Entertainment | 6 | Other Media Apps | A manga reader, a Spotify ad skipper, a link opener and two Bilibili exporters. |
 | awesome-shizuku: Miscellaneous | 26 | Other System Tools | awesome-shizuku's own catch-all: recorders, monitors, exploits, Linux and alarms. |
 | awesome-shizuku: Productivity | 9 | Other Productivity Tools | Named for the whole region: clipboard tools, focus apps, PC links and a to-do app. |
-| awesome-shizuku: Vendor-specific › Other | 10 | Other Devices | Apps for one device each: e-ink tablets, gaming handhelds, a car head unit, a headset. |
+| awesome-shizuku: Vendor-specific › Other | 9 | Other Devices | Apps for one device each: e-ink tablets, gaming handhelds, a car head unit, a headset. |
 | awesome-shizuku: Closed-source apps › Productivity | 1 | Other Productivity Tools | The closed-source page's “Productivity”, as on the open list. |
 | awesome-shizuku: Archived apps | 12 | Other System Tools | A status, not a kind of app: anything the list no longer recommends. |
 
@@ -88,14 +88,14 @@ region. awesome-shizuku's **Archived apps** is a status, not a kind of app.
 
 ## Categories by region
 
-### System & Tweaks: 104 apps
+### System & Tweaks: 106 apps
 
 | Category | Apps | Takes in |
 |---|---|---|
 | Battery & Power | 24 | Android FOSS: Battery; awesome-shizuku: Power management; awesome-shizuku: Closed-source apps › Power management; 1 placed |
-| Display Tools | 17 | awesome-shizuku: Display management; awesome-shizuku: Closed-source apps › Display management; 4 placed |
+| Display Tools | 18 | awesome-shizuku: Display management; awesome-shizuku: Closed-source apps › Display management; 4 placed |
 | Quick Settings Tiles | 13 | awesome-shizuku: Quick settings; awesome-shizuku: Closed-source apps › Quick settings |
-| Monitors & Task Managers | 22 | awesome-shizuku: Task manager; 12 placed |
+| Monitors & Task Managers | 23 | awesome-shizuku: Task manager; 12 placed |
 | Shizuku & Alternatives | 9 | awesome-shizuku: Shizuku implementations; 1 placed |
 | Rooting & Recovery | 10 | Android FOSS: Rooting and Recovery; 3 placed |
 | Flashlights | 3 | Android FOSS: Flashlight |
@@ -112,7 +112,7 @@ region. awesome-shizuku's **Archived apps** is a status, not a kind of app.
 | Patchers & Mods | 8 | awesome-shizuku: Patching; 4 placed |
 | Backup | 5 | Android FOSS: Backup; 2 placed |
 
-### Files & Sync: 86 apps
+### Files & Sync: 84 apps
 
 | Category | Apps | Takes in |
 |---|---|---|
@@ -120,13 +120,13 @@ region. awesome-shizuku's **Archived apps** is a status, not a kind of app.
 | File Tools | 7 | 7 placed |
 | Sharing & PC Link | 18 | Android FOSS: File Sharing; 5 placed |
 | Cloud & Sync | 10 | Android FOSS: Synchronisation |
-| Downloaders | 15 | Android FOSS: Downloader & Manager; 2 placed |
+| Downloaders | 13 | Android FOSS: Downloader & Manager; 2 placed |
 
-### Automation & Dev Tools: 103 apps
+### Automation & Dev Tools: 102 apps
 
 | Category | Apps | Takes in |
 |---|---|---|
-| Automation Tools | 23 | Android FOSS: Automation; awesome-shizuku: Automation; awesome-shizuku: Closed-source apps › Automation; 3 placed |
+| Automation Tools | 22 | Android FOSS: Automation; awesome-shizuku: Automation; awesome-shizuku: Closed-source apps › Automation; 3 placed |
 | AI Agents | 21 | awesome-shizuku: AI agents; awesome-shizuku: Closed-source apps › AI agents |
 | Developer Tools (remainder) | 30 | Android FOSS: Development; awesome-shizuku: Development utilities; awesome-shizuku: Closed-source apps › Development utilities; 4 placed |
 | APK Tools | 7 | 7 placed |
@@ -134,18 +134,18 @@ region. awesome-shizuku's **Archived apps** is a status, not a kind of app.
 | Remote Access | 5 | 5 placed |
 | Smart Home & Wearables | 7 | 7 placed |
 
-### Device-specific: 66 apps
+### Device-specific: 68 apps
 
 | Category | Apps | Takes in |
 |---|---|---|
 | Samsung | 15 | awesome-shizuku: Vendor-specific › Samsung OneUI; awesome-shizuku: Closed-source apps › Vendor-specific › Samsung OneUI; 1 placed |
-| Google Pixel | 11 | awesome-shizuku: Vendor-specific › Google Pixel; 1 placed |
+| Google Pixel | 12 | awesome-shizuku: Vendor-specific › Google Pixel; 1 placed |
 | Xiaomi | 13 | awesome-shizuku: Vendor-specific › MIUI; awesome-shizuku: Closed-source apps › Vendor-specific › MIUI; 1 placed |
 | Nothing Phone | 3 | awesome-shizuku: Vendor-specific › Nothing Phone |
 | Gaming Handhelds | 8 | awesome-shizuku: Vendor-specific › AYN; 2 placed |
 | E-ink Tablets | 3 | 3 placed |
 | Android TV | 4 | awesome-shizuku: Android TV |
-| Android Auto | 6 | awesome-shizuku: Android Auto; awesome-shizuku: Closed-source apps › Android Auto; 2 placed |
+| Android Auto | 7 | awesome-shizuku: Android Auto; awesome-shizuku: Closed-source apps › Android Auto; 2 placed |
 | Other Devices (remainder) | 3 | 3 placed |
 
 ### Privacy, Security & Network: 138 apps
@@ -175,13 +175,13 @@ region. awesome-shizuku's **Archived apps** is a status, not a kind of app.
 | Wallpapers | 14 | Android FOSS: Wallpapers; 1 placed |
 | Icon Packs | 3 | Android FOSS: Icon Packs |
 
-### Communication: 75 apps
+### Communication: 72 apps
 
 | Category | Apps | Takes in |
 |---|---|---|
 | Messengers | 27 | Android FOSS: Messaging |
-| Social & Forums | 18 | Android FOSS: Community Clients; 3 placed |
-| Calls & Contacts | 16 | Android FOSS: Call Blocker & Spam Filter; Android FOSS: Contacts; Android FOSS: Dialer; 6 placed |
+| Social & Forums | 17 | Android FOSS: Community Clients; 2 placed |
+| Calls & Contacts | 14 | Android FOSS: Call Blocker & Spam Filter; Android FOSS: Contacts; Android FOSS: Dialer; 4 placed |
 | Email | 9 | Android FOSS: Email Aliases; Android FOSS: Email Clients |
 | SMS Apps | 5 | Android FOSS: SMS |
 
@@ -205,11 +205,11 @@ region. awesome-shizuku's **Archived apps** is a status, not a kind of app.
 | Video Editors | 3 | Android FOSS: Video Editor |
 | Movie & TV Trackers | 2 | Android FOSS: Movie & Cinema |
 
-### Productivity: 153 apps
+### Productivity: 150 apps
 
 | Category | Apps | Takes in |
 |---|---|---|
-| Notes & Journals | 30 | Android FOSS: Diary; Android FOSS: Notes; 1 placed |
+| Notes & Journals | 27 | Android FOSS: Diary; Android FOSS: Notes; 1 placed |
 | E-book & Document Readers | 14 | Android FOSS: Document & PDF Viewer; 1 placed |
 | Calculators & Converters | 10 | Android FOSS: Calculator; 1 placed |
 | Habits & Time Tracking | 10 | Android FOSS: Habit Tracker; 3 placed |
@@ -580,15 +580,12 @@ nobody would look for it there; the rest come from catch-alls.
 
 - **Mastodon** (`org.joinmastodon.android`): The Mastodon app; Android FOSS files it under Messaging, and other Mastodon clients sit here.
 - **Moshidon** (`github-lucasggamerm-moshidon`): A Mastodon client; Android FOSS files it under Messaging.
-- **Megalodon** (`github-sk22-megalodon`): A Mastodon client; Android FOSS files it under Messaging.
 
 ### Calls & Contacts
 
 - **ShizuCallRecorder** (`com.kitsumed.shizucallrecorder`): Records phone calls.
 - **GhostMode** (`github-foxlape-ghostmode`): Makes the phone look unavailable for incoming calls.
 - **cally** (`github-lyosu-cally`): A call recorder.
-- **CallVault** (`github-madkongo-callvault`): A call recorder.
-- **RivoPhoneApp** (`github-user-grinch-rivophone`): A dialer and contacts app.
 - **Call Recorder (Skvalex)** (`awesome-shizuku-call-recorder-skvalex`): A call recorder; awesome-shizuku files it under Audio.
 
 ### Video Streaming Clients
